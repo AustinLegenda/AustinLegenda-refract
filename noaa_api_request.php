@@ -14,35 +14,39 @@ try {
     $conn = new PDO("mysql:host=localhost;dbname=your_database", "your_username", "your_password");
     $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-    while (!feof($file)) {
-        $line = fgets($file);
+while (!feof($file)) {
+    $line = fgets($file);
+    // Remove any BOM
+    $line = preg_replace('/^\xEF\xBB\xBF/', '', $line);
 
-        // Skip comment or empty lines
-        if (strpos(trim($line), '#') === 0 || trim($line) === '') {
-            continue;
-        }
-
-        $data = preg_split("/[\s]+/", trim($line));
-        if (count($data) !== 15 || !is_numeric($data[0])) {
-            continue; // Skip malformed rows
-        }
-
-        list($year, $month, $day, $hour, $minute,
-             $wvht, $swh, $swp, $wwh, $wwp,
-             $swd, $wwd, $steepness, $apd, $mwd) = $data;
-
-        $stmt = $conn->prepare("INSERT INTO buoy_data (
-            year, month, day, hour, minute,
-            wvht, swh, swp, wwh, wwp,
-            swd, wwd, steepness, apd, mwd
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-
-        $stmt->execute([
-            $year, $month, $day, $hour, $minute,
-            $wvht, $swh, $swp, $wwh, $wwp,
-            $swd, $wwd, $steepness, $apd, $mwd
-        ]);
+    // Skip comment/header lines (first non-ws char is #) or blank lines
+    if (preg_match('/^\s*#/', $line) || trim($line) === '') {
+        continue;
     }
+
+    $data = preg_split('/\s+/', trim($line));
+    // Must be exactly 15 columns, and year must be numeric
+    if (count($data) !== 15 || !is_numeric($data[0])) {
+        continue;
+    }
+
+    list($year, $month, $day, $hour, $minute,
+         $wvht, $swh, $swp, $wwh, $wwp,
+         $swd, $wwd, $steepness, $apd, $mwd) = $data;
+
+    $stmt = $conn->prepare(
+      "INSERT INTO buoy_data (
+         year, month, day, hour, minute,
+         wvht, swh, swp, wwh, wwp,
+         swd, wwd, steepness, apd, mwd
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    );
+    $stmt->execute([
+      $year, $month, $day, $hour, $minute,
+      $wvht, $swh, $swp, $wwh, $wwp,
+      $swd, $wwd, $steepness, $apd, $mwd
+    ]);
+}
 
     echo "NOAA buoy data import completed successfully.";
 } catch (PDOException $e) {
