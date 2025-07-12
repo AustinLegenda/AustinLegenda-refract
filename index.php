@@ -15,14 +15,7 @@ $one_hour_past_est = date('Y-m-d H:i:s', strtotime('+1 hour'));
 
 // Execute the SQL query and retrieve the result as an associative array
 $query = "SELECT * FROM buoy_data WHERE CONCAT(year, '-', month, '-', day, ' ', hour, ':', minute, ':00') <= '$one_hour_past_est' ORDER BY CONCAT(year, '-', month, '-', day, ' ', hour, ':', minute) DESC LIMIT 1";
-$stmt = $conn->prepare("
-    SELECT * FROM buoy_data
-    ORDER BY ABS(TIMESTAMPDIFF(SECOND,
-        TIMESTAMP(year, month, day, hour, minute, 0),
-        NOW()
-    )) ASC
-    LIMIT 1
-");
+$stmt = $conn->prepare($query);
 $stmt->execute();
 $result = $stmt->fetch(PDO::FETCH_ASSOC);
 
