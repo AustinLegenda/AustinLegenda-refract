@@ -17,9 +17,9 @@ try {
         $line = fgets($file);
 
         // Skip comment lines
-        if (substr($line, 0, 1) === "#") {
-            continue;
-        }
+       if (strpos(trim($line), '#') === 0) {
+    continue;
+}
 
         $data = preg_split("/[\s]+/", trim($line));
         if (count($data) < 15) {
