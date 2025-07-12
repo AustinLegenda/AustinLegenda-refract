@@ -14,31 +14,48 @@ date_default_timezone_set('America/New_York');
 $url = 'https://www.ndbc.noaa.gov/data/realtime2/41112.spec';
 $response = file_get_contents($url);
 $lines = explode("\n", $response);
-$header = array_shift($lines); // remove column headers
 
 // Step 2: Insert new records
 foreach ($lines as $line) {
-    if (trim($line) === '') continue;
-    $parts = preg_split('/\s+/', $line);
-    if (count($parts) < 15) continue;
+    // Strip any UTF-8 BOM
+    $line = preg_replace('/^\xEF\xBB\xBF/', '', $line);
 
-    // Build timestamp for this row
+    // Skip blank lines or any line whose first non-space char is '#'
+    if (preg_match('/^\s*#/', $line) || trim($line) === '') {
+        continue;
+    }
+
+    // Split on whitespace
+    $parts = preg_split('/\s+/', trim($line));
+    if (count($parts) < 15) {
+        continue; // too few columns
+    }
+
+    // Make sure we really have numeric year/month/day etc.
+    if (!is_numeric($parts[0])) {
+        continue;
+    }
+
+    // Check for existing row
     list($year, $month, $day, $hour, $minute) = array_slice($parts, 0, 5);
-    $timestamp = "$year-$month-$day $hour:$minute:00";
-
-    // Check if this timestamp exists already
     $check = $pdo->prepare("
         SELECT COUNT(*) FROM buoy_data 
-        WHERE year = ? AND month = ? AND day = ? AND hour = ? AND minute = ?
+         WHERE year=? AND month=? AND day=? AND hour=? AND minute=?
     ");
     $check->execute([$year, $month, $day, $hour, $minute]);
-    if ($check->fetchColumn() > 0) continue;
+    if ($check->fetchColumn() > 0) {
+        continue;
+    }
 
     // Insert new row
     $insert = $pdo->prepare("
-        INSERT INTO buoy_data (year, month, day, hour, minute, wvht, swh, swp, wwh, wwp, swd, wwd, steepness, apd, mwd)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO buoy_data (
+        year, month, day, hour, minute,
+        wvht, swh, swp, wwh, wwp,
+        swd, wwd, steepness, apd, mwd
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ");
+    // take exactly the first 15 fields
     $insert->execute(array_slice($parts, 0, 15));
 }
 
