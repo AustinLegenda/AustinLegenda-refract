@@ -1,59 +1,95 @@
 <?php
+// index.php
 error_reporting(E_ALL);
 ini_set('display_errors', '1');
 
-// DB config and connection
-include('admin/config.php');
-require 'noaa_api_request.php'; 
-$pdo = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME, DB_USER, DB_PASSWORD);
-$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+include 'admin/config.php';        // defines DB_HOST, DB_NAME, DB_USER, DB_PASS
+require 'noaa_api_request.php';
 
-// 1) build schema map
-$station = '41112';
-$columns = getNoaaSchema($station);
+try {
+    // 1) Fetch & parse
+    $station = '41112';
+    $result  = fetchNoaaSpectralData($station);
+    $cols    = $result['columns'];    // e.g. ['YY','MM','DD','hh','mm','WVHT',...]
+    $rows    = $result['data'];       // array of assoc arrays with ts + each col
 
-// 2) open the real data file
-$dataUrl = "https://www.ndbc.noaa.gov/data/realtime2/{$station}.txt";
-$file    = @fopen($dataUrl, 'r');
-if (! $file) {
-    die("Cannot open data for station {$station}");
-}
+    // 2) Connect to MySQL
+    $pdo = new PDO(
+      "mysql:host=".DB_HOST.";dbname=".DB_NAME,
+      DB_USER, DB_PASS,
+      [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+    );
 
-// 3) loop & import
-while (! feof($file)) {
-    $line = fgets($file);
-    // strip BOM
-    $line = preg_replace('/^\xEF\xBB\xBF/', '', $line);
+    // 3) Prepare INSERT IGNORE
+    // We’ll store all columns except the raw YY/MM/DD/hh/mm fields,
+    // since we have ts. So filter those out:
+    $dataCols = array_filter($cols, function($c){
+        return !in_array($c, ['YY','MM','DD','hh','mm']);
+    });
+    // Build SQL
+    $dbCols   = array_merge(['ts'], $dataCols);
+    $ph       = implode(',', array_fill(0, count($dbCols), '?'));
+    $insertSql = sprintf(
+      "INSERT IGNORE INTO wave_data (%s) VALUES (%s)",
+      implode(',', $dbCols),
+      $ph
+    );
+    $stmt = $pdo->prepare($insertSql);
 
-    // skip header/comments/empty
-    if (preg_match('/^\s*#/', $line) || trim($line) === '') {
-        continue;
+    // 4) Insert each row
+    foreach ($rows as $r) {
+        $params = [];
+        // timestamp first
+        $params[] = $r['ts'];
+        // then each data column
+        foreach ($dataCols as $col) {
+            $params[] = $r[$col];
+        }
+        $stmt->execute($params);
     }
 
-    // split into fields
-    $vals = preg_split('/\s+/', trim($line));
-    // must match or exceed schema length, and year must be numeric
-    if (count($vals) < count($columns) || ! is_numeric($vals[0])) {
-        continue;
-    }
+    // 5) Render last 50 rows
+    $out = $pdo->query(
+      "SELECT ts, ".implode(',', $dataCols).
+      " FROM wave_data ORDER BY ts DESC LIMIT 50"
+    )->fetchAll(PDO::FETCH_ASSOC);
 
-    // map name→value
-    $row = array_combine($columns, array_slice($vals, 0, count($columns)));
-
-    // now insert the 15 fields you care about
-    $stmt = $pdo->prepare("
-        INSERT IGNORE INTO buoy_data (
-          year, month, day, hour, minute,
-          wvht, swh, swp, wwh, wwp,
-          swd, wwd, steepness, apd, mwd
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ");
-    $stmt->execute([
-        $row['YY'], $row['MM'], $row['DD'], $row['hh'], $row['mm'],
-        $row['WVHT'], $row['SwH'], $row['SwP'], $row['WWH'], $row['WWP'],
-        $row['SWD'], $row['WWD'], $row['STEEPNESS'], $row['APD'], $row['MWD'],
-    ]);
+} catch (Exception $e) {
+    die("Error: " . $e->getMessage());
 }
-
-fclose($file);
-echo "Import complete.\n";
+?>
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Spectral Wave Data (Station <?php echo htmlspecialchars($station) ?>)</title>
+  <style>
+    table { border-collapse: collapse; width:100%; }
+    th, td { padding:4px 8px; border:1px solid #ccc; text-align:center; }
+    th { background:#eee; }
+  </style>
+</head>
+<body>
+  <h1>Station <?php echo htmlspecialchars($station) ?> — Latest 50 Records</h1>
+  <table>
+    <thead>
+      <tr>
+        <th>Timestamp (UTC)</th>
+        <?php foreach ($dataCols as $col): ?>
+          <th><?php echo htmlspecialchars($col) ?></th>
+        <?php endforeach ?>
+      </tr>
+    </thead>
+    <tbody>
+      <?php foreach ($out as $row): ?>
+      <tr>
+        <td><?php echo htmlspecialchars($row['ts']) ?></td>
+        <?php foreach ($dataCols as $col): ?>
+          <td><?php echo htmlspecialchars($row[$col]) ?></td>
+        <?php endforeach ?>
+      </tr>
+      <?php endforeach ?>
+    </tbody>
+  </table>
+</body>
+</html>
