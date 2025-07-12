@@ -1,6 +1,6 @@
 
 <?php
-//error_reporting(E_ALL);
+error_reporting(E_ALL);
 ini_set('display_errors', '1');
 
 // Include the configuration file and connect to the database
@@ -14,7 +14,7 @@ date_default_timezone_set('America/New_York');
 $one_hour_past_est = date('Y-m-d H:i:s', strtotime('+1 hour'));
 
 // Execute the SQL query and retrieve the result as an associative array
-$query = "SELECT * FROM buoy_data WHERE CONCAT(year, '-', month, '-', day, ' ', hour, ':', minute, ':00') <= '$one_hour_past_est' ORDER BY CONCAT(year, '-', month, '-', day, ' ', hour, ':', minute, ':', second) DESC LIMIT 1";
+$query = "SELECT * FROM buoy_data WHERE CONCAT(year, '-', month, '-', day, ' ', hour, ':', minute, ':00') <= '$one_hour_past_est' ORDER BY CONCAT(year, '-', month, '-', day, ' ', hour, ':', minute) DESC LIMIT 1";
 $stmt = $conn->prepare($query);
 $stmt->execute();
 $result = $stmt->fetch(PDO::FETCH_ASSOC);
