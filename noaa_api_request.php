@@ -1,54 +1,60 @@
 <?php
 /**
- * spec_units.php
- *
- * Parses NDBC’s .spec file for station 41112
- * to build a map of COLUMN → UNIT.
+ * Parses .spec file for station 41112 and outputs cleaned JSON.
+ * Handles directional text (ESE) → degrees, and skips 'N/A'.
  */
 
-//— CONFIG
+function directionToDegrees($dir) {
+    static $map = [
+        'N'=>0, 'NNE'=>22, 'NE'=>45, 'ENE'=>67, 'E'=>90, 'ESE'=>112,
+        'SE'=>135, 'SSE'=>157, 'S'=>180, 'SSW'=>202, 'SW'=>225, 'WSW'=>247,
+        'W'=>270, 'WNW'=>292, 'NW'=>315, 'NNW'=>337
+    ];
+    return $map[$dir] ?? null;
+}
+
 $station = '41112';
-$specUrl = "https://www.ndbc.noaa.gov/data/realtime2/{$station}.spec";
-$dataUrl = "https://www.ndbc.noaa.gov/data/realtime2/{$station}.txt";
+$url = "https://www.ndbc.noaa.gov/data/realtime2/{$station}.spec";
+$lines = @file($url, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
 
-//— 1) Fetch and parse the .spec (units) line
-$specContents = @file_get_contents($specUrl);
-if ($specContents === false) {
-    die("❌ Unable to fetch spec file at {$specUrl}");
+if (!$lines || count($lines) < 3) {
+    http_response_code(500);
+    echo json_encode(['error' => 'Unable to read or parse .spec file']);
+    exit;
 }
-// Remove any BOM and leading ‘#’
-$specLine = preg_replace('/^\xEF\xBB\xBF#/', '', trim($specContents));
-// Split on whitespace to get unit codes, e.g. ['yr','mo','dy','hr','mn','m',…]
-$unitCodes = preg_split('/\s+/', $specLine);
 
-//— 2) Open the .txt file just to grab its header (column codes)
-$file = @fopen($dataUrl, 'r');
-if (! $file) {
-    die("❌ Unable to open data file at {$dataUrl}");
-}
-$columnCodes = [];
-while (! feof($file)) {
-    $line = fgets($file);
-    // Look for the very first header row (#YY …)
-    if (preg_match('/^\s*#\s*YY/', $line)) {
-        // Strip BOM/#, then split to get ['YY','MM','DD','hh','mm','WVHT',…]
-        $columnCodes = preg_split('/\s+/', trim(substr(preg_replace('/^\xEF\xBB\xBF/', '', $line), 1)));
-        break;
+// First line is column names
+$columns = preg_split('/\s+/', trim($lines[0]));
+
+// Data rows begin after second line (units)
+$data = [];
+for ($i = 2; $i < count($lines); $i++) {
+    $parts = preg_split('/\s+/', trim($lines[$i]));
+    if (count($parts) !== count($columns)) continue;
+    $row = array_combine($columns, $parts);
+
+    // Normalize fields
+    $row['SwD'] = directionToDegrees($row['SwD']);
+    $row['WWD'] = directionToDegrees($row['WWD']);
+    $row['STEEPNESS'] = $row['STEEPNESS'] !== 'N/A' ? $row['STEEPNESS'] : null;
+
+    foreach ($row as $k => &$v) {
+        if (in_array($k, ['SwD', 'WWD', 'MWD']) && $v !== null) {
+            $v = (int) $v;
+        } elseif (is_numeric($v)) {
+            $v = strpos($v, '.') !== false ? (float) $v : (int) $v;
+        } elseif ($v === 'N/A') {
+            $v = null;
+        }
     }
-}
-fclose($file);
 
-if (count($columnCodes) !== count($unitCodes)) {
-    die("❌ Column count (".count($columnCodes).") does not match unit count (".count($unitCodes).")");
+    $data[] = $row;
 }
 
-//— 3) Combine into a map: CODE => UNIT
-$unitMap = array_combine($columnCodes, $unitCodes);
-
-//— 4) Output as JSON
 header('Content-Type: application/json');
 echo json_encode([
-    'station'  => $station,
-    'columns'  => $columnCodes,
-    'units'    => $unitMap,
+    'station' => $station,
+    'columns' => $columns,
+    'count'   => count($data),
+    'data'    => $data
 ], JSON_PRETTY_PRINT);
