@@ -1,54 +1,54 @@
 <?php
 /**
- * spec_parser.php
+ * spec_units.php
  *
- * Fetches and parses NDBC’s .spec file for a buoy station,
- * producing a JSON map of column‐codes to human-readable descriptions.
+ * Parses NDBC’s .spec file for station 41112
+ * to build a map of COLUMN → UNIT.
  */
 
-// — CONFIGURATION —
+//— CONFIG
 $station = '41112';
 $specUrl = "https://www.ndbc.noaa.gov/data/realtime2/{$station}.spec";
+$dataUrl = "https://www.ndbc.noaa.gov/data/realtime2/{$station}.txt";
 
-// — FETCH & CLEAN —
-$lines = @file($specUrl, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-if (! $lines) {
-    http_response_code(500);
-    echo json_encode(['error' => "Unable to fetch spec for station {$station}"]);
-    exit;
+//— 1) Fetch and parse the .spec (units) line
+$specContents = @file_get_contents($specUrl);
+if ($specContents === false) {
+    die("❌ Unable to fetch spec file at {$specUrl}");
 }
+// Remove any BOM and leading ‘#’
+$specLine = preg_replace('/^\xEF\xBB\xBF#/', '', trim($specContents));
+// Split on whitespace to get unit codes, e.g. ['yr','mo','dy','hr','mn','m',…]
+$unitCodes = preg_split('/\s+/', $specLine);
 
-// — 1) Find header row & extract column codes —
-$columns = [];
-foreach ($lines as $i => $line) {
+//— 2) Open the .txt file just to grab its header (column codes)
+$file = @fopen($dataUrl, 'r');
+if (! $file) {
+    die("❌ Unable to open data file at {$dataUrl}");
+}
+$columnCodes = [];
+while (! feof($file)) {
+    $line = fgets($file);
+    // Look for the very first header row (#YY …)
     if (preg_match('/^\s*#\s*YY/', $line)) {
-        // drop leading ‘#’ then split on whitespace
-        $columns = preg_split('/\s+/', trim(substr($line, 1)));
-        $headerIndex = $i;
+        // Strip BOM/#, then split to get ['YY','MM','DD','hh','mm','WVHT',…]
+        $columnCodes = preg_split('/\s+/', trim(substr(preg_replace('/^\xEF\xBB\xBF/', '', $line), 1)));
         break;
     }
 }
-if (empty($columns)) {
-    http_response_code(500);
-    echo json_encode(['error' => "Spec header not found in {$specUrl}"]);
-    exit;
+fclose($file);
+
+if (count($columnCodes) !== count($unitCodes)) {
+    die("❌ Column count (".count($columnCodes).") does not match unit count (".count($unitCodes).")");
 }
 
-// — 2) Parse definitions from the lines _after_ the header —
-$definitions = [];
-for ($j = $headerIndex + 1; $j < count($lines); $j++) {
-    $line = trim($lines[$j]);
-    // match lines like “#YR Year”
-    if (preg_match('/^#\s*([A-Za-z0-9]+)\s+(.*)$/', $line, $m)) {
-        list(, $code, $desc) = $m;
-        $definitions[$code] = $desc;
-    }
-}
+//— 3) Combine into a map: CODE => UNIT
+$unitMap = array_combine($columnCodes, $unitCodes);
 
-// — 3) Output JSON —
+//— 4) Output as JSON
 header('Content-Type: application/json');
 echo json_encode([
-    'station'     => $station,
-    'columns'     => $columns,
-    'definitions' => $definitions,
+    'station'  => $station,
+    'columns'  => $columnCodes,
+    'units'    => $unitMap,
 ], JSON_PRETTY_PRINT);
