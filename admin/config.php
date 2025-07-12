@@ -1,9 +1,9 @@
 <?php
 
-define('DB_HOST', 'gator3189.hostgator.com');
-define('DB_NAME', 'legenda1_refract');
-define('DB_USER', 'legenda1_austin');
-define('DB_PASSWORD', '3NKDyhRSfFgRujst');
-//    $conn = new PDO("mysql:host=gator3189.hostgator.com;dbname=legenda1_refract", "legenda1_austin", "3NKDyhRSfFgRujst");
+define('DB_HOST', '157.245.209.9');
+define('DB_NAME', 'mdpngsfhzc');
+define('DB_USER', 'mdpngsfhzc');
+define('DB_PASSWORD', 'Qj4B2z3fWt');
+$conn = new PDO("mysql:host=157.245.209.9;dbname=mdpngsfhzc", "mdpngsfhzc", "Qj4B2z3fWt");
 
 ?>
