@@ -1,7 +1,7 @@
 <?php
 // NOAA Buoy Data Importer for Station 41112
 
-$url = "https://www.ndbc.noaa.gov/data/realtime2/41112.spec";
+$url = "https://www.ndbc.noaa.gov/data/realtime2/41112.txt";
 
 // Attempt to open the remote file
 $file = @fopen($url, "r");
