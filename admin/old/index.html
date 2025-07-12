@@ -1,0 +1,86 @@
+<head>
+    <link rel=¨stylesheet¨ type=¨text/css¨ href=¨styles.css¨>
+</head>
+<body>
+    <form action="/action_page.php">
+        <label for="period">Period:</label>
+        <input type="text" id="period" name="T" oninput=" waveMath()"><br><br>
+        <label for="waveAngle">Angle:</label>
+        <input type="text" id="waveAngle" name="a" oninput=" waveMath()"><br><br>
+        <label for="height">Height:</label>
+        <input type="text" id="height" name="H" oninput="waveMath()"><br><br>
+      <label for="beachAngle">Beach Angle:</label>
+        <input type="text" id="beachAngle" name="H" oninput="waveMath()"><br><br>
+        
+      </form>
+      For small amp waves with coaslines with parallel bottom contours.
+      <br><br>
+      <div class="rows" id="simpleRefraction">Refracted θ:
+      <div id="aRefract" class="field">0</div>
+      <div id="" class="field">-</div>
+      <div id="" class="field">-</div></div>
+      <br>
+      <div class="rows" id="k">|K|:
+      <div id="kDeep" class="field">0</div>
+      <div id="" class="field">-</div>
+      <div id="" class="field">-</div></div>
+      <br>
+      <div class="rows" id="x">Kx:
+      <div id="Kx" class="field">0</div>
+      <div id="" class="field">-</div>
+      <div id="" class="field">-</div></div>
+      <br>
+      <div class="rows" id="y">Ky:
+      <div id="Ky" class="field">0</div>
+      <div id="" class="field">-</div>
+      <div id="" class="field">-</div></div>
+      <br>
+      <div class="rows" id="angularFrequancy">ω or σ:
+      <div id="afDeep" class="field">0</div>
+      <div id="" class="field">-</div>
+      <div id="" class="field">-</div></div>
+      <br>
+      <div class="rows" id="depths">h:
+      <div id="hDeep" class="field">0</div>
+      <div id="hTran" class="field">0</div>
+      <div id="hShal" class="field">0</div></div>
+      <br>
+      <div class="rows" id="celerity">C:
+      <div id="CDeep" class="field">0</div>
+      <div id="CTran" class="field">0</div>
+      <div id="CShal" class="field">0</div></div>
+      <br>
+      <div class="rows" id="waveLengths">L:
+      <div id="LDeep" class="field">0</div>
+      <div id="LTran" class="field">0</div>
+      <div id="LShal" class="field">0</div></div>
+      <br>
+      <div class="rows" id="Cg">Cg:
+      <div id="CgDeep" class="field">0</div>
+      <div id="CgTran" class="field">0</div>
+      <div id="CgShal" class="field">0</div></div>
+      <br>
+      <div class="rows" id="sina">sin(a):
+      <div id="sinaDeep" class="field">0</div>
+      <div id="sinaTran" class="field">0</div>
+      <div id="sinaShal" class="field">0</div></div>
+      <br>
+      <div class="rows" id="tanhkh">tanh(kh):
+      <div id="tanhkhDeep" class="field">0</div>
+      <div id="tanhkhTran" class="field">0</div>
+      <div id="tanhkhShal" class="field">0</div></div>
+      <br>
+      <div class="rows" id="H">H:
+      <div id="HDeep" class="field">0</div>
+      <div id="HTran" class="field">0</div>
+      <div id="HShal" class="field">0</div></div>
+      <br>
+      <div class="rows" id="amp">η:
+      <div id="ampDeep" class="field">0</div>
+      <div id="ampTran" class="field">0</div>
+      <div id="ampShallow" class="field">0</div></div>
+      <br>      
+      <footer>
+        <script src="..\refract\functions.js"></script>
+      </footer>
+</body>
