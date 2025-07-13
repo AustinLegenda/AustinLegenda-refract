@@ -3,12 +3,9 @@
 error_reporting(E_ALL);
 ini_set('display_errors', '1');
 
-// ----- CONFIGURE YOUR DATABASE HERE -----
-define('DB_HOST', 'localhost');
-define('DB_NAME', 'your_database');
-define('DB_USER', 'your_username');
-define('DB_PASS', 'your_password');
-// -----------------------------------------
+// 0) Load config & importer
+include 'admin/config.php';            // defines DB_HOST, DB_NAME, DB_USER, DB_PASS
+require 'noaa_api_request.php';        // fetchNoaaSpectralData()
 
 // 1) FETCH & PARSE THE .spec DATA
 $station = '41112';
