@@ -107,7 +107,7 @@ $stmtLatest = $pdo->query(
 );
 $latest = $stmtLatest->fetchAll(PDO::FETCH_ASSOC);
 
-// 5) Compute user’s “now” in UTC (you already have this)
+// 5) COMPUTE USER’S “NOW” IN UTC
 $userTz   = new DateTimeZone('America/New_York');
 $userNow  = new DateTime('now', $userTz);
 $userNow->setTimezone(new DateTimeZone('UTC'));
@@ -123,8 +123,6 @@ $stmt = $pdo->prepare("
 ");
 $stmt->execute([$targetTs]);
 $closest = $stmt->fetch(PDO::FETCH_ASSOC);
-$stmtClose->execute([$targetTs]);
-$closest = $stmtClose->fetch(PDO::FETCH_ASSOC) ?: null;
 
 // 6a) Compute surf‐period for that single row
 $surfPeriod = null;
