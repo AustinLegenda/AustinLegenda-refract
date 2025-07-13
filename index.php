@@ -124,6 +124,23 @@ $stmtClose = $pdo->prepare("
 $stmtClose->execute([$targetTs]);
 $closest = $stmtClose->fetch(PDO::FETCH_ASSOC) ?: null;
 
+// 6a) Compute surf‐period for that single row
+$surfPeriod = null;
+if ($closest) {
+    // pull raw heights & periods
+    $swH = $closest['SwH'];
+    $swP = $closest['SwP'];
+    $wwH = $closest['WWH'];
+    $wwP = $closest['WWP'];
+
+    // compute energy proxies
+    $E_sw = ($swH * $swH) * $swP;
+    $E_ww = ($wwH * $wwH) * $wwP;
+
+    // pick the period of the more energetic system
+    $surfPeriod = ($E_sw >= $E_ww) ? $swP : $wwP;
+}
+
 // 7) FIND & ORDER SURF SPOTS BY CLOSENESS TO MWD (using spot_angle)
 $matchingSpots = [];
 if ($closest && isset($closest['MWD'])) {
@@ -182,8 +199,12 @@ function h($v): string {
       <?php endforeach ?>
     </tbody>
   </table>
-
-  <h2>Row Closest to Your Time (<?= h($targetTs) ?> UTC)</h2>
+  <h2>
+  Row Closest to Your Time (<?= h($targetTs) ?> UTC)
+  <?php if ($surfPeriod !== null): ?>
+    — <em>Surf Period:</em> <?= h(number_format($surfPeriod,1)) ?> s
+  <?php endif ?>
+</h2>
   <table>
     <thead>
       <tr>
