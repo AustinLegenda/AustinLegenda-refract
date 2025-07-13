@@ -124,18 +124,21 @@ $stmtClose = $pdo->prepare("
 $stmtClose->execute([$targetTs]);
 $closest = $stmtClose->fetch(PDO::FETCH_ASSOC) ?: null;
 
-// 7) FIND SURF SPOTS MATCHING MWD
+// 7) FIND & ORDER SURF SPOTS BY CLOSENESS TO MWD (using spot_angle)
 $matchingSpots = [];
 if ($closest && isset($closest['MWD'])) {
     $mwd = (int)$closest['MWD'];
+
     $stmtSpots = $pdo->prepare("
-        SELECT id, spot_name, spot_window_min, spot_window_max
-          FROM surf_spots
-         WHERE spot_window_min <= ? 
-           AND spot_window_max >= ?
-         ORDER BY spot_name
+        SELECT 
+          id,
+          spot_name,
+          spot_angle,
+          ABS(spot_angle - ?) AS distance
+        FROM surf_spots
+        ORDER BY distance ASC
     ");
-    $stmtSpots->execute([$mwd, $mwd]);
+    $stmtSpots->execute([$mwd]);
     $matchingSpots = $stmtSpots->fetchAll(PDO::FETCH_ASSOC);
 }
 
@@ -206,18 +209,15 @@ function h($v): string {
     </tbody>
   </table>
 
-  <h2>Surf Spots Matching MWD = <?= h($closest['MWD'] ?? '-') ?>°</h2>
-  <?php if (empty($matchingSpots)): ?>
-    <p>No surf spots match that wave direction.</p>
-  <?php else: ?>
-    <ul>
-      <?php foreach ($matchingSpots as $s): ?>
-        <li>
-          <?= h($s['spot_name']) ?>
-          (<?= h($s['spot_window_min']) ?>&ndash;<?= h($s['spot_window_max']) ?>°)
-        </li>
-      <?php endforeach ?>
-    </ul>
-  <?php endif ?>
+<h2>Surf Spots by Angle Difference (MWD = <?= h($closest['MWD']) ?>°)</h2>
+<ul>
+<?php foreach ($matchingSpots as $s): ?>
+  <li>
+    <?= h($s['spot_name']) ?> 
+    (angle: <?= h($s['spot_angle']) ?>°,
+     Δ=<?= h($s['distance']) ?>°)
+  </li>
+<?php endforeach ?>
+</ul>
 </body>
 </html>
