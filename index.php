@@ -107,20 +107,22 @@ $stmtLatest = $pdo->query(
 );
 $latest = $stmtLatest->fetchAll(PDO::FETCH_ASSOC);
 
-// 5) COMPUTE USER’S “NOW” IN UTC
+// 5) Compute user’s “now” in UTC (you already have this)
 $userTz   = new DateTimeZone('America/New_York');
 $userNow  = new DateTime('now', $userTz);
 $userNow->setTimezone(new DateTimeZone('UTC'));
 $targetTs = $userNow->format('Y-m-d H:i:00');
 
-// 6) FETCH THE ROW CLOSEST TO targetTs
-$stmtClose = $pdo->prepare("
-    SELECT ts, {$colsList},
-           ABS(TIMESTAMPDIFF(SECOND, ts, ?)) AS diff
+// 6) Fetch the most recent completed reading
+$stmt = $pdo->prepare("
+    SELECT ts, {$colsList}
       FROM wave_data
-     ORDER BY diff
+     WHERE ts <= ?
+     ORDER BY ts DESC
      LIMIT 1
 ");
+$stmt->execute([$targetTs]);
+$closest = $stmt->fetch(PDO::FETCH_ASSOC);
 $stmtClose->execute([$targetTs]);
 $closest = $stmtClose->fetch(PDO::FETCH_ASSOC) ?: null;
 
