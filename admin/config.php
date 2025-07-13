@@ -1,6 +1,6 @@
 <?php
 
-define('DB_HOST', '157.245.209.9');
+//define('DB_HOST', '157.245.209.9');
 define('DB_NAME', 'mdpngsfhzc');
 define('DB_USER', 'mdpngsfhzc');
 define('DB_PASS', 'Qj4B2z3fWt');
