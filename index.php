@@ -4,12 +4,8 @@
 error_reporting(E_ALL);
 ini_set('display_errors', '1');
 
-// Load config and autoload
-require_once __DIR__ . '/config.php';
-require_once __DIR__ . '/includes/Gateways/NoaaRequest.php';
-require_once __DIR__ . '/includes/Helpers/SpectralDataParser.php';
-require_once __DIR__ . '/includes/API/NoaaWebHook.php';
-require_once __DIR__ . '/includes/Repositories/NoaaRepository.php';
+require_once __DIR__ . '/vendor/autoload.php';
+
 
 use Legenda\NormalSurf\API\NoaaRequest;
 use Legenda\NormalSurf\API\SpectralDataParser;
