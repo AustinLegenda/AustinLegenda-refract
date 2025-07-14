@@ -1,77 +1,28 @@
 <?php
-// index.php
+// public-facing index.php for testing NOAA pipeline
+
 error_reporting(E_ALL);
 ini_set('display_errors', '1');
 
-// 0) Load config & importer
-include 'admin/config.php';            // defines DB_HOST, DB_NAME, DB_USER, DB_PASS
-require 'noaa_api_request.php';        // fetchNoaaSpectralData()
+// Load config and autoload
+require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/includes/Gateways/NoaaRequest.php';
+require_once __DIR__ . '/includes/Helpers/SpectralDataParser.php';
+require_once __DIR__ . '/includes/API/NoaaWebHook.php';
+require_once __DIR__ . '/includes/Repositories/NoaaRepository.php';
 
-// 1) FETCH & PARSE THE .spec DATA
+use Legenda\NormalSurf\API\NoaaRequest;
+use Legenda\NormalSurf\API\SpectralDataParser;
+use Legenda\NormalSurf\API\NoaaWebHook;
+use Legenda\NormalSurf\API\NoaaRepository;
+
+// 1) Get parsed NOAA data
 $station = '41112';
-$specUrl = "https://www.ndbc.noaa.gov/data/realtime2/{$station}.spec";
-$lines   = @file($specUrl, FILE_IGNORE_NEW_LINES|FILE_SKIP_EMPTY_LINES);
-if (!$lines) {
-    die("Unable to fetch .spec for station {$station}");
-}
+$data = NoaaWebhook::fetch_and_parse($station);
+$dataCols = array_filter($data['columns'], fn($c) => !in_array($c, ['YY','MM','DD','hh','mm'], true));
+$dataRows = $data['data'];
 
-// 1a) Find the header line and skip the next (units) line
-$cols     = [];
-$startRow = null;
-foreach ($lines as $i => $line) {
-    if (preg_match('/^\s*#\s*YY\s+MM\s+DD/', $line)) {
-        // strip leading '#' and split on whitespace
-        $cols     = preg_split('/\s+/', trim(substr($line, 1)));
-        $startRow = $i + 2; // skip the units row
-        break;
-    }
-}
-if (!$cols) {
-    die("Spec header not found in {$specUrl}");
-}
-
-// 1b) Direction → degrees map
-$dirMap = [
-    'N'=>0,'NNE'=>22,'NE'=>45,'ENE'=>67,
-    'E'=>90,'ESE'=>112,'SE'=>135,'SSE'=>157,
-    'S'=>180,'SSW'=>202,'SW'=>225,'WSW'=>247,
-    'W'=>270,'WNW'=>292,'NW'=>315,'NNW'=>337
-];
-
-// 1c) Build an array of parsed rows
-$dataRows = [];
-for ($i = $startRow; $i < count($lines); $i++) {
-    $line = trim($lines[$i]);
-    if ($line === '' || strpos($line, '#') === 0) {
-        continue;
-    }
-    $vals = preg_split('/\s+/', $line);
-    if (count($vals) < count($cols)) {
-        continue;
-    }
-
-    // build timestamp
-    list($YY, $MM, $DD, $hh, $mn) = array_slice($vals, 0, 5);
-    $ts = sprintf('%04d-%02d-%02d %02d:%02d:00', $YY, $MM, $DD, $hh, $mn);
-
-    // map & sanitize each column
-    $row = ['ts' => $ts];
-    foreach ($cols as $idx => $col) {
-        $raw = $vals[$idx] ?? '';
-        if ($raw === '' || strtoupper($raw) === 'N/A') {
-            $row[$col] = null;
-        } elseif (in_array($col, ['SwD','WWD'], true)) {
-            $row[$col] = $dirMap[$raw] ?? null;
-        } elseif ($col === 'STEEPNESS') {
-            $row[$col] = $raw;
-        } else {
-            $row[$col] = is_numeric($raw) ? floatval($raw) : null;
-        }
-    }
-    $dataRows[] = $row;
-}
-
-// 2) CONNECT TO DATABASE
+// 2) Connect to DB
 $pdo = new PDO(
     "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=utf8mb4",
     DB_USER,
@@ -79,10 +30,7 @@ $pdo = new PDO(
     [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
 );
 
-// 3) INSERT NEW WAVE DATA
-// drop the raw date cols: YY, MM, DD, hh, mn  ← mn is minute raw, but header actually 'mm'
-$dataCols = array_filter($cols, fn($c) => !in_array($c, ['YY','MM','DD','hh','mm'], true));
-
+// 3) Insert into wave_data table
 $dbCols = array_merge(['ts'], $dataCols);
 $ph     = implode(',', array_fill(0, count($dbCols), '?'));
 $sqlIns = sprintf(
@@ -100,20 +48,20 @@ foreach ($dataRows as $r) {
     $stmtIns->execute($params);
 }
 
-// 4) LOAD LATEST 50 ROWS
-$colsList   = implode(',', $dataCols);
+// 4) Fetch latest 50 rows
+$colsList = implode(',', $dataCols);
 $stmtLatest = $pdo->query(
     "SELECT ts, {$colsList} FROM wave_data ORDER BY ts DESC LIMIT 50"
 );
 $latest = $stmtLatest->fetchAll(PDO::FETCH_ASSOC);
 
-// 5) COMPUTE USER’S “NOW” IN UTC
+// 5) Determine user "now" in UTC
 $userTz   = new DateTimeZone('America/New_York');
 $userNow  = new DateTime('now', $userTz);
 $userNow->setTimezone(new DateTimeZone('UTC'));
 $targetTs = $userNow->format('Y-m-d H:i:00');
 
-// 6) Fetch the most recent completed reading
+// 6) Fetch closest reading
 $stmt = $pdo->prepare("
     SELECT ts, {$colsList}
       FROM wave_data
@@ -124,28 +72,24 @@ $stmt = $pdo->prepare("
 $stmt->execute([$targetTs]);
 $closest = $stmt->fetch(PDO::FETCH_ASSOC);
 
-// 6a) Compute surf‐period for that single row
+// 6a) Compute surf period
 $surfPeriod = null;
 if ($closest) {
-    // pull raw heights & periods
     $swH = $closest['SwH'];
     $swP = $closest['SwP'];
     $wwH = $closest['WWH'];
     $wwP = $closest['WWP'];
 
-    // compute energy proxies
     $E_sw = ($swH * $swH) * $swP;
     $E_ww = ($wwH * $wwH) * $wwP;
 
-    // pick the period of the more energetic system
     $surfPeriod = ($E_sw >= $E_ww) ? $swP : $wwP;
 }
 
-// 7) FIND & ORDER SURF SPOTS BY CLOSENESS TO MWD (using spot_angle)
+// 7) Match surf spots by angle
 $matchingSpots = [];
 if ($closest && isset($closest['MWD'])) {
     $mwd = (int)$closest['MWD'];
-
     $stmtSpots = $pdo->prepare("
         SELECT 
           id,
@@ -159,7 +103,7 @@ if ($closest && isset($closest['MWD'])) {
     $matchingSpots = $stmtSpots->fetchAll(PDO::FETCH_ASSOC);
 }
 
-// Safe HTML helper
+// Output helpers
 function h($v): string {
     return htmlspecialchars((string)($v ?? ''), ENT_QUOTES, 'UTF-8');
 }
