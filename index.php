@@ -4,10 +4,9 @@ error_reporting(E_ALL);
 ini_set('display_errors', '1');
 require_once __DIR__ . '/vendor/autoload.php';
 
-use Legenda\NormalSurf\Helpers\convert;
 use Legenda\NormalSurf\Repositories\NoaaRepository;
 use Legenda\NormalSurf\Helpers\SpectralDataParser;
-use Legenda\NormalSurf\Helpers\convertors;
+use Legenda\NormalSurf\Helpers\convert;
 
 // 1) FETCH PARSED + FILTERED NOAA DATA
 $station = '41112';
