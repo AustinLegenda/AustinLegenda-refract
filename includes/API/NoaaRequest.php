@@ -1,23 +1,29 @@
 <?php
 namespace Legenda\NormalSurf\API;
 
-use Legenda\NormalSurf\Gateways\NoaaGateway;
-use Legenda\NormalSurf\Gateways\NoaaRequest;
-use Legenda\NormalSurf\Helpers\NoaaParser;
 use Legenda\NormalSurf\Helpers\SpectralDataParser;
 
-class NoaaWebhook
+class NoaaRequest
 {
-    public static function fetch_and_parse(string $station = '41112'): array
+    public static function fetch_raw_spec(string $station): array
     {
-        $lines = NoaaRequest::fetch_raw_spec($station);
+        $url = "https://www.ndbc.noaa.gov/data/realtime2/{$station}.spec";
+        $lines = @file($url, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+
+        if (!$lines) {
+            throw new \Exception("Unable to fetch .spec for station {$station}");
+        }
+
+        return $lines;
+    }
+
+    public static function fetch_parsed_spec(string $station): array
+    {
+        $lines = self::fetch_raw_spec($station);
         return SpectralDataParser::parse($lines);
     }
-}
 
-class NoaaSpectralCron
-{
-    public static function register()
+    public static function register_cron()
     {
         add_action('wp', [__CLASS__, 'schedule_event']);
         add_action('nrml_refresh_noaa_data', [__CLASS__, 'refresh_data']);
@@ -32,13 +38,13 @@ class NoaaSpectralCron
 
     public static function refresh_data()
     {
-        $stations = ['41112', 'Fernandian Buoy'];
+        $stations = ['41112'];
         foreach ($stations as $station) {
             try {
-                $data = NoaaWebhook::fetch_and_parse($station);
+                $data = self::fetch_parsed_spec($station);
                 set_transient("noaa_spec_{$station}", $data, 30 * MINUTE_IN_SECONDS);
             } catch (\Exception $e) {
-                error_log($e->getMessage());
+                error_log("NOAA fetch failed for station {$station}: " . $e->getMessage());
             }
         }
     }

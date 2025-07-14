@@ -1,24 +1,23 @@
 <?php
-// public-facing index.php for testing NOAA pipeline
-
-error_reporting(E_ALL);
-ini_set('display_errors', '1');
+// index.php
 
 require_once __DIR__ . '/vendor/autoload.php';
 
+use Legenda\NormalSurf\Helpers\convert;
+use Legenda\NormalSurf\Repositories\NoaaRepository;
+use Legenda\NormalSurf\Helpers\SpectralDataParser;
+use Legenda\NormalSurf\Helpers\convertors;
 
-use Legenda\NormalSurf\API\NoaaRequest;
-use Legenda\NormalSurf\API\SpectralDataParser;
-use Legenda\NormalSurf\API\NoaaWebHook;
-use Legenda\NormalSurf\API\NoaaRepository;
-
-// 1) Get parsed NOAA data
+// 1) FETCH PARSED + FILTERED NOAA DATA
 $station = '41112';
-$data = NoaaWebhook::fetch_and_parse($station);
-$dataCols = array_filter($data['columns'], fn($c) => !in_array($c, ['YY','MM','DD','hh','mm'], true));
+$rawData = NoaaRepository::get_data($station);
+$data    = SpectralDataParser::filter($rawData);
+
+$dataCols = $data['columns'];
 $dataRows = $data['data'];
 
-// 2) Connect to DB
+// 2) CONNECT TO DATABASE
+require_once __DIR__ . '/config.php';
 $pdo = new PDO(
     "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=utf8mb4",
     DB_USER,
@@ -26,55 +25,48 @@ $pdo = new PDO(
     [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
 );
 
-// 3) Insert into wave_data table
-$dbCols = array_merge(['ts'], $dataCols);
-$ph     = implode(',', array_fill(0, count($dbCols), '?'));
-$sqlIns = sprintf(
+// 3) INSERT NEW WAVE DATA
+$insertCols = array_merge(['ts'], $dataCols);
+$placeholders = implode(',', array_fill(0, count($insertCols), '?'));
+$sqlInsert = sprintf(
     "INSERT IGNORE INTO wave_data (%s) VALUES (%s)",
-    implode(',', $dbCols),
-    $ph
+    implode(',', $insertCols),
+    $placeholders
 );
-$stmtIns = $pdo->prepare($sqlIns);
+$stmtInsert = $pdo->prepare($sqlInsert);
 
-foreach ($dataRows as $r) {
-    $params = [$r['ts']];
-    foreach ($dataCols as $c) {
-        $params[] = $r[$c];
+foreach ($dataRows as $row) {
+    $params = [$row['ts']];
+    foreach ($dataCols as $col) {
+        $params[] = $row[$col];
     }
-    $stmtIns->execute($params);
+    $stmtInsert->execute($params);
 }
 
-// 4) Fetch latest 50 rows
+// 4) LOAD LATEST 50 ROWS
 $colsList = implode(',', $dataCols);
-$stmtLatest = $pdo->query(
-    "SELECT ts, {$colsList} FROM wave_data ORDER BY ts DESC LIMIT 50"
-);
+$stmtLatest = $pdo->query("SELECT ts, {$colsList} FROM wave_data ORDER BY ts DESC LIMIT 50");
 $latest = $stmtLatest->fetchAll(PDO::FETCH_ASSOC);
 
-// 5) Determine user "now" in UTC
-$userTz   = new DateTimeZone('America/New_York');
-$userNow  = new DateTime('now', $userTz);
-$userNow->setTimezone(new DateTimeZone('UTC'));
-$targetTs = $userNow->format('Y-m-d H:i:00');
-
-// 6) Fetch closest reading
+// 5) FIND MOST RECENT READING CLOSEST TO USER TIME
+$targetTs = convert::UTC_time();
 $stmt = $pdo->prepare("
     SELECT ts, {$colsList}
-      FROM wave_data
-     WHERE ts <= ?
-     ORDER BY ts DESC
-     LIMIT 1
+    FROM wave_data
+    WHERE ts <= ?
+    ORDER BY ts DESC
+    LIMIT 1
 ");
 $stmt->execute([$targetTs]);
 $closest = $stmt->fetch(PDO::FETCH_ASSOC);
 
-// 6a) Compute surf period
+// 6) COMPUTE SURF PERIOD
 $surfPeriod = null;
 if ($closest) {
-    $swH = $closest['SwH'];
-    $swP = $closest['SwP'];
-    $wwH = $closest['WWH'];
-    $wwP = $closest['WWP'];
+    $swH = $closest['SwH'] ?? 0;
+    $swP = $closest['SwP'] ?? 0;
+    $wwH = $closest['WWH'] ?? 0;
+    $wwP = $closest['WWP'] ?? 0;
 
     $E_sw = ($swH * $swH) * $swP;
     $E_ww = ($wwH * $wwH) * $wwP;
@@ -82,16 +74,12 @@ if ($closest) {
     $surfPeriod = ($E_sw >= $E_ww) ? $swP : $wwP;
 }
 
-// 7) Match surf spots by angle
+// 7) MATCH SURF SPOTS BY MWD ANGLE
 $matchingSpots = [];
 if ($closest && isset($closest['MWD'])) {
     $mwd = (int)$closest['MWD'];
     $stmtSpots = $pdo->prepare("
-        SELECT 
-          id,
-          spot_name,
-          spot_angle,
-          ABS(spot_angle - ?) AS distance
+        SELECT id, spot_name, spot_angle, ABS(spot_angle - ?) AS distance
         FROM surf_spots
         ORDER BY distance ASC
     ");
@@ -99,7 +87,7 @@ if ($closest && isset($closest['MWD'])) {
     $matchingSpots = $stmtSpots->fetchAll(PDO::FETCH_ASSOC);
 }
 
-// Output helpers
+// HTML ESCAPE
 function h($v): string {
     return htmlspecialchars((string)($v ?? ''), ENT_QUOTES, 'UTF-8');
 }
@@ -139,12 +127,13 @@ function h($v): string {
       <?php endforeach ?>
     </tbody>
   </table>
+
   <h2>
-  Row Closest to Your Time (<?= h($targetTs) ?> UTC)
-  <?php if ($surfPeriod !== null): ?>
-    — <em>Surf Period:</em> <?= h(number_format($surfPeriod,1)) ?> s
-  <?php endif ?>
-</h2>
+    Row Closest to Your Time (<?= h($targetTs) ?> UTC)
+    <?php if ($surfPeriod !== null): ?>
+      — <em>Surf Period:</em> <?= h(number_format($surfPeriod,1)) ?> s
+    <?php endif ?>
+  </h2>
   <table>
     <thead>
       <tr>
@@ -170,15 +159,14 @@ function h($v): string {
     </tbody>
   </table>
 
-<h2>Surf Spots by Angle Difference (MWD = <?= h($closest['MWD']) ?>°)</h2>
-<ul>
-<?php foreach ($matchingSpots as $s): ?>
-  <li>
-    <?= h($s['spot_name']) ?> 
-    (angle: <?= h($s['spot_angle']) ?>°,
-     Δ=<?= h($s['distance']) ?>°)
-  </li>
-<?php endforeach ?>
-</ul>
+  <h2>Surf Spots by Angle Difference (MWD = <?= h($closest['MWD'] ?? 'n/a') ?>°)</h2>
+  <ul>
+    <?php foreach ($matchingSpots as $s): ?>
+      <li>
+        <?= h($s['spot_name']) ?>
+        (angle: <?= h($s['spot_angle']) ?>°, Δ=<?= h($s['distance']) ?>°)
+      </li>
+    <?php endforeach ?>
+  </ul>
 </body>
 </html>
