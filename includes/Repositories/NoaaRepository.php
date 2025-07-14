@@ -1,7 +1,25 @@
 <?php
+
 namespace Legenda\NormalSurf\Repositories;
 
 use Legenda\NormalSurf\API\NoaaRequest;
+
+// Fallbacks for non-WordPress environments
+if (!function_exists('get_transient')) {
+    function get_transient($key)
+    {
+        return false; // bypass cache in dev
+    }
+
+    function set_transient($key, $value, $expire)
+    {
+        return true;
+    }
+
+    if (!defined('MINUTE_IN_SECONDS')) {
+        define('MINUTE_IN_SECONDS', 60);
+    }
+}
 
 class NoaaRepository
 {
