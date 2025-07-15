@@ -8,7 +8,7 @@ use PDO;
 
 class LoadData
 {
-    public static function conn_report(): void
+    public static function conn_report(): array
     {
         // 1) Fetch and filter data
         $station = '41112';
@@ -46,5 +46,7 @@ class LoadData
             }
             $stmt->execute($params);
         }
+            return [$pdo, $station, $dataCols];
     }
+
 }
