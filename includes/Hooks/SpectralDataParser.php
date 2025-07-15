@@ -1,5 +1,5 @@
 <?php
-namespace Legenda\NormalSurf\Helpers;
+namespace Legenda\NormalSurf\Hooks;
 
 class SpectralDataParser
 {

@@ -1,7 +1,7 @@
 <?php
 namespace Legenda\NormalSurf\API;
 
-use Legenda\NormalSurf\Helpers\SpectralDataParser;
+use Legenda\NormalSurf\Hooks\SpectralDataParser;
 
 class NoaaRequest
 {

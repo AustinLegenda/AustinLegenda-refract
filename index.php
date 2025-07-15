@@ -4,44 +4,11 @@ error_reporting(E_ALL);
 ini_set('display_errors', '1');
 require_once __DIR__ . '/vendor/autoload.php';
 
-use Legenda\NormalSurf\Repositories\NoaaRepository;
-use Legenda\NormalSurf\Helpers\SpectralDataParser;
-use Legenda\NormalSurf\Helpers\convert;
+use Legenda\NormalSurf\Hooks\convert;
+use Legenda\NormalSurf\Hooks\LoadData;
 
-// 1) FETCH PARSED + FILTERED NOAA DATA
-$station = '41112';
-$rawData = NoaaRepository::get_data($station);
-$data    = SpectralDataParser::filter($rawData);
-
-$dataCols = $data['columns'];
-$dataRows = $data['data'];
-
-// 2) CONNECT TO DATABASE
-require_once __DIR__ . '/config.php';
-$pdo = new PDO(
-    "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=utf8mb4",
-    DB_USER,
-    DB_PASS,
-    [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
-);
-
-// 3) INSERT NEW WAVE DATA
-$insertCols = array_merge(['ts'], $dataCols);
-$placeholders = implode(',', array_fill(0, count($insertCols), '?'));
-$sqlInsert = sprintf(
-    "INSERT IGNORE INTO wave_data (%s) VALUES (%s)",
-    implode(',', $insertCols),
-    $placeholders
-);
-$stmtInsert = $pdo->prepare($sqlInsert);
-
-foreach ($dataRows as $row) {
-    $params = [$row['ts']];
-    foreach ($dataCols as $col) {
-        $params[] = $row[$col];
-    }
-    $stmtInsert->execute($params);
-}
+// 1) Load the NOAA wave data into the DB
+LoadData::conn_report();
 
 // 4) LOAD LATEST 50 ROWS
 $colsList = implode(',', $dataCols);
