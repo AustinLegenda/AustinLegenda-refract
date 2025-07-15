@@ -89,6 +89,5 @@ function h($v): string {
       </li>
     <?php endforeach ?>
   </ul>
-  <iframe id="vIframe" style="overflow: hidden;" src="https://coastalcameranetwork.com/webcams/innisfree-hotels/amelia-island-beach-cam.php" width="100%" frameborder="0" scrolling="no" allowfullscreen="allowfullscreen"></iframe>
 </body>
 </html>
