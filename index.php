@@ -4,7 +4,7 @@ error_reporting(E_ALL);
 ini_set('display_errors', '1');
 require_once __DIR__ . '/vendor/autoload.php';
 
-use Legenda\NormalSurf\Hooks\convert;
+use Legenda\NormalSurf\Hooks\Convert;
 use Legenda\NormalSurf\Hooks\LoadData;
 
 // 1) Load the NOAA wave data into the DB
@@ -16,7 +16,7 @@ $stmtLatest = $pdo->query("SELECT ts, {$colsList} FROM wave_data ORDER BY ts DES
 $latest = $stmtLatest->fetchAll(PDO::FETCH_ASSOC);
 
 // 5) FIND MOST RECENT READING CLOSEST TO USER TIME
-$targetTs = convert::UTC_time();
+$targetTs = Convert::UTC_time();
 $stmt = $pdo->prepare("
     SELECT ts, {$colsList}
     FROM wave_data

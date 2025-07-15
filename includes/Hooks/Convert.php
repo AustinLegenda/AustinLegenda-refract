@@ -1,7 +1,7 @@
 <?php
 namespace Legenda\NormalSurf\Hooks;
 
-class convert
+class Convert
 {
     public static function UTC_time(string $tz = 'America/New_York'): string
     {
