@@ -8,7 +8,7 @@ use Legenda\NormalSurf\Hooks\Convert;
 use Legenda\NormalSurf\Hooks\LoadData;
 
 // 1) Load the NOAA wave data into the DB
-[$pdo, $station, $dataCols] = LoadData::conn_report();
+[$pdo, $station, $dataCols, $colsList] = LoadData::conn_report();
 
 // 2) FIND MOST RECENT READING CLOSEST TO USER TIME
 $targetTs = Convert::UTC_time();
