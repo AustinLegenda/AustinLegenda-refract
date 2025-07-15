@@ -45,7 +45,13 @@ function h($v): string {
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-
+  <style>
+    body { font-family: sans-serif; margin:20px; }
+    table { border-collapse: collapse; width:100%; margin-bottom:30px; }
+    th, td { padding:6px 10px; border:1px solid #ccc; text-align:center; }
+    th { background:#eee; }
+    h1,h2 { margin-bottom:10px; }
+  </style>
   <h2>
     Current Observation | Station | UTC Converted
   </h2>
