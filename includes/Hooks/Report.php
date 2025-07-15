@@ -20,7 +20,3 @@ class WaveData
     }
 }
 
-//Load all data (50)
-//$colsList = implode(',', $dataCols);
-//$stmtLatest = $pdo->query("SELECT ts, {$colsList} FROM wave_data ORDER BY ts DESC LIMIT 50");
-//$latest = $stmtLatest->fetchAll(PDO::FETCH_ASSOC);
