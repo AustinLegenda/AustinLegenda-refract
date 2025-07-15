@@ -89,6 +89,6 @@ function h($v): string {
       </li>
     <?php endforeach ?>
   </ul>
-  <iframe loading="lazy" id="vIframe" src="/cams_http/amelia-island-webcam.php" style="overflow: hidden; visibility: visible;" width="100%" frameborder="0" scrolling="no" allowfullscreen="allowfullscreen" data-rocket-lazyload="fitvidscompatible" data-lazy-src="/cams_http/amelia-island-webcam.php" height="536.25px" data-ll-status="loaded" class="entered lazyloaded"></iframe>
+  <iframe loading="lazy" id="vIframe" src="https://www.seasideameliainn.com/beach-cam/" style="overflow: hidden; visibility: visible;" width="100%" frameborder="0" scrolling="no" allowfullscreen="allowfullscreen" data-rocket-lazyload="fitvidscompatible" data-lazy-src="/cams_http/amelia-island-webcam.php" height="536.25px" data-ll-status="loaded" class="entered lazyloaded"></iframe>
 </body>
 </html>
