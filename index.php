@@ -10,12 +10,7 @@ use Legenda\NormalSurf\Hooks\LoadData;
 // 1) Load the NOAA wave data into the DB
 [$pdo, $station, $dataCols] = LoadData::conn_report();
 
-// 4) LOAD LATEST 50 ROWS
-$colsList = implode(',', $dataCols);
-$stmtLatest = $pdo->query("SELECT ts, {$colsList} FROM wave_data ORDER BY ts DESC LIMIT 50");
-$latest = $stmtLatest->fetchAll(PDO::FETCH_ASSOC);
-
-// 5) FIND MOST RECENT READING CLOSEST TO USER TIME
+// 2) FIND MOST RECENT READING CLOSEST TO USER TIME
 $targetTs = Convert::UTC_time();
 $stmt = $pdo->prepare("
     SELECT ts, {$colsList}
@@ -27,21 +22,8 @@ $stmt = $pdo->prepare("
 $stmt->execute([$targetTs]);
 $closest = $stmt->fetch(PDO::FETCH_ASSOC);
 
-// 6) COMPUTE SURF PERIOD
-$surfPeriod = null;
-if ($closest) {
-    $swH = $closest['SwH'] ?? 0;
-    $swP = $closest['SwP'] ?? 0;
-    $wwH = $closest['WWH'] ?? 0;
-    $wwP = $closest['WWP'] ?? 0;
 
-    $E_sw = ($swH * $swH) * $swP;
-    $E_ww = ($wwH * $wwH) * $wwP;
-
-    $surfPeriod = ($E_sw >= $E_ww) ? $swP : $wwP;
-}
-
-// 7) MATCH SURF SPOTS BY MWD ANGLE
+// 3) MATCH SURF SPOTS BY MWD ANGLE
 $matchingSpots = [];
 if ($closest && isset($closest['MWD'])) {
     $mwd = (int)$closest['MWD'];
@@ -63,43 +45,9 @@ function h($v): string {
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Spectral Data & Surf Spots</title>
-  <style>
-    body { font-family: sans-serif; margin:20px; }
-    table { border-collapse: collapse; width:100%; margin-bottom:30px; }
-    th, td { padding:6px 10px; border:1px solid #ccc; text-align:center; }
-    th { background:#eee; }
-    h1,h2 { margin-bottom:10px; }
-  </style>
-</head>
-<body>
-  <h1>Station <?= h($station) ?> — Latest 50 Spectral Rows</h1>
-  <table>
-    <thead>
-      <tr>
-        <th>Timestamp (UTC)</th>
-        <?php foreach ($dataCols as $c): ?>
-          <th><?= h($c) ?></th>
-        <?php endforeach ?>
-      </tr>
-    </thead>
-    <tbody>
-      <?php foreach ($latest as $row): ?>
-        <tr>
-          <td><?= h($row['ts']) ?></td>
-          <?php foreach ($dataCols as $c): ?>
-            <td><?= h($row[$c]) ?></td>
-          <?php endforeach ?>
-        </tr>
-      <?php endforeach ?>
-    </tbody>
-  </table>
 
   <h2>
-    Row Closest to Your Time (<?= h($targetTs) ?> UTC)
-    <?php if ($surfPeriod !== null): ?>
-      — <em>Surf Period:</em> <?= h(number_format($surfPeriod,1)) ?> s
-    <?php endif ?>
+    Current Observation | Station | UTC Converted
   </h2>
   <table>
     <thead>
