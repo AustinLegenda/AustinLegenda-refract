@@ -50,6 +50,6 @@ class LoadData
             $stmtLatest = $pdo->query("SELECT ts, {$colsList} FROM wave_data ORDER BY ts DESC LIMIT 50");
             $latest = $stmtLatest->fetchAll(PDO::FETCH_ASSOC);
         }
-        return [$pdo, $station, $dataCols];
+        return [$pdo, $station, $dataCols, $colsList];
     }
 }
