@@ -8,9 +8,10 @@ use Legenda\NormalSurf\Hooks\convert;
 use Legenda\NormalSurf\Hooks\LoadData;
 
 // 1) Load the NOAA wave data into the DB
-LoadData::conn_report();
+[$pdo, $station, $dataCols] = LoadData::conn_report();
 
-// 2) LOAD LATEST 50 ROWS
+// 4) LOAD LATEST 50 ROWS
+$colsList = implode(',', $dataCols);
 $stmtLatest = $pdo->query("SELECT ts, {$colsList} FROM wave_data ORDER BY ts DESC LIMIT 50");
 $latest = $stmtLatest->fetchAll(PDO::FETCH_ASSOC);
 
