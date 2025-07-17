@@ -22,6 +22,11 @@ class RefractionModel
         return sqrt(self::GRAVITY * $depth);
     }
 
+    public static function isValidShoalDepth(float $waveHeight, float $depth): bool
+    {
+        return $depth > ($waveHeight * 1.3);
+    }
+
     /**
      * Calculate depth ratio (c2 / c1) used in Snell's Law.
      * @param float $period         Deep water wave period (s)
@@ -42,7 +47,7 @@ class RefractionModel
      * @param float $depth       Nearshore depth in meters
      * @return float|null        Refracted angle in degrees, or null if total reflection
      */
-    public static function refractedAOI(float $aoiDegrees, float $period, float $depth = 3.5): ?float
+    public static function refractedAOI(float $aoiDegrees, float $period, float $depth = 5.5): ?float
     {
         $c1 = self::deepWaterSpeed($period);
         $c2 = self::shallowWaterSpeed($depth);
