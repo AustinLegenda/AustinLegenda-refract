@@ -8,25 +8,41 @@ use Legenda\NormalSurf\Hooks\Convert;
 use Legenda\NormalSurf\Hooks\LoadData;
 use Legenda\NormalSurf\Hooks\WaveData;
 use Legenda\NormalSurf\Models\RefractionModel;
+use Legenda\NormalSurf\Hooks\Report;
 
 // 1. Load NOAA data
-[$pdo, $station, $dataCols, $colsList] = LoadData::conn_report();
+[$pdo, $station1, $cols1, $colsList1, $table1] = LoadData::conn_report('41112');
+[$_, $station2, $cols2, $colsList2, $table2] = LoadData::conn_report('41117');
 
 // 2. Get latest buoy reading
 $targetTs = Convert::UTC_time();
-$stmt = $pdo->prepare("
-    SELECT ts, {$colsList}
-    FROM station_41112
+
+$stmt1 = $pdo->prepare("
+    SELECT ts, {$colsList1}
+    FROM {$table1}
     WHERE ts <= ?
     ORDER BY ts DESC
     LIMIT 1
 ");
-$stmt->execute([$targetTs]);
-$closest = $stmt->fetch(PDO::FETCH_ASSOC);
+$stmt1->execute([$targetTs]);
+$data1 = $stmt1->fetch(PDO::FETCH_ASSOC);
+
+$stmt2 = $pdo->prepare("
+    SELECT ts, {$colsList2}
+    FROM {$table2}
+    WHERE ts <= ?
+    ORDER BY ts DESC
+    LIMIT 1
+");
+$stmt2->execute([$targetTs]);
+$data2 = $stmt2->fetch(PDO::FETCH_ASSOC);
+
 
 // 3. Prepare data
 $wvht = (float)($closest['WVHT'] ?? 1.0);
 $period = (float)($closest['SwP'] ?? $closest['WWP'] ?? 10);
+$report = new Report();
+$matchingSpots = $report->station_interpolation($pdo, $data1, $data2, $waveData);
 
 // 4. HTML escape helper
 function h($v): string

@@ -38,7 +38,7 @@ class NoaaRequest
 
     public static function refresh_data()
     {
-        $stations = ['41112'];
+        $stations = ['41112','41117'];
         foreach ($stations as $station) {
             try {
                 $data = self::fetch_parsed_spec($station);
