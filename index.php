@@ -76,7 +76,7 @@ function h($v): string
     }
   </style>
   <h2>
-    Current Observatios Station: <?php echo ($station); ?> | <?php echo ($closest['ts']); ?> (UTC)
+    Current Observations
   </h2>
   <h3>
     Station: <?php echo ($station); ?>, <?php echo ($closest['ts']); ?> (UTC)
@@ -84,7 +84,7 @@ function h($v): string
   <table>
     <thead>
       <tr>
-        <th>Timestamp (UTC)</th>
+        <th>Timestamp</th>
         <?php foreach ($dataCols as $c): ?>
           <th><?= h($c) ?></th>
         <?php endforeach ?>
@@ -94,6 +94,7 @@ function h($v): string
       <?php if ($closest): ?>
         <tr>
           <td><?= h($closest['ts']) ?></td>
+          <td><?= h(Convert::toLocalTime($closest['ts'], 'America/New_York')) ?></td>
           <?php foreach ($dataCols as $c): ?>
             <td><?= h($closest[$c]) ?></td>
           <?php endforeach ?>
