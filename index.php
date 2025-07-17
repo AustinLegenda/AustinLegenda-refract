@@ -94,6 +94,7 @@ function h($v): string
       <?php if ($closest): ?>
         <tr>
           <td><?= h(Convert::toLocalTime($closest['ts'])) ?></td>
+          <td><?= h(Convert::metersToFeet($c['WVHT'])) ?></td>
           <?php foreach ($dataCols as $c): ?>
             <td><?= h($closest[$c]) ?></td>
           <?php endforeach ?>
