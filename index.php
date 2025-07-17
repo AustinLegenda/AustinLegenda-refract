@@ -76,7 +76,7 @@ function h($v): string
     }
   </style>
   <h2>
-    Current Observation | Station | <?php foreach ($dataCols as $c): ?> <?= h($c) ?> <?php endforeach ?>(UTC)
+    Current Observation |<?php echo ($station); ?>| Timestamp of closest row (UTC)
   </h2>
   <table>
     <thead>
