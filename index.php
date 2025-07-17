@@ -37,9 +37,9 @@ if ($closest && isset($closest['MWD'])) {
   $stmtSpots = $pdo->query("SELECT id, spot_name, spot_angle FROM surf_spots");
 
   while ($spot = $stmtSpots->fetch(PDO::FETCH_ASSOC)) {
-      $aoi = $waveData->AOI((float)$spot['spot_angle'], $mwd);
-      $spot['aoi'] = $aoi;
-      $matchingSpots[] = $spot;
+    $aoi = $waveData->AOI((float)$spot['spot_angle'], $mwd);
+    $spot['aoi'] = $aoi;
+    $matchingSpots[] = $spot;
   }
 
   usort($matchingSpots, fn($a, $b) => $a['aoi'] <=> $b['aoi']);
@@ -47,63 +47,89 @@ if ($closest && isset($closest['MWD'])) {
 ?>
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <style>
-    body { font-family: sans-serif; margin: 20px; }
-    table { border-collapse: collapse; width: 100%; margin-bottom: 30px; }
-    th, td { padding: 6px 10px; border: 1px solid #ccc; text-align: center; }
-    th { background: #eee; }
-    h1, h2 { margin-bottom: 10px; }
+    body {
+      font-family: sans-serif;
+      margin: 20px;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-bottom: 30px;
+    }
+
+    th,
+    td {
+      padding: 6px 10px;
+      border: 1px solid #ccc;
+      text-align: center;
+    }
+
+    th {
+      background: #eee;
+    }
+
+    h1,
+    h2 {
+      margin-bottom: 10px;
+    }
   </style>
 </head>
+
 <body>
 
-<h2>Current Observations</h2>
-<h3>
-  Station: <?= h($station) ?>, <?= h($closest['ts']) ?> (UTC)
-</h3>
+  <h2>Current Observations</h2>
+  <h3>
+    Station: <?= h($station) ?>, <?= h($closest['ts']) ?> (UTC)
+  </h3>
 
-<table>
-  <thead>
-    <tr>
-      <th>Timestamp</th>
-      <?php foreach ($dataCols as $c): ?>
-        <th><?= h($c) ?></th>
-      <?php endforeach ?>
-    </tr>
-  </thead>
-  <tbody>
-    <?php if ($closest): ?>
+  <table>
+    <thead>
       <tr>
-        <td><?= h(Convert::toLocalTime($closest['ts'])) ?></td>
+        <th>Timestamp</th>
         <?php foreach ($dataCols as $c): ?>
-          <td>
-            <?php if (in_array($c, ['WVHT', 'SwH', 'WWH'], true)): ?>
-              <?= h(Convert::metersToFeet((float)$closest[$c])) ?>
-            <?php else: ?>
-              <?= h($closest[$c]) ?>
-            <?php endif ?>
-          </td>
+          <th><?= h($c) ?></th>
         <?php endforeach ?>
       </tr>
-    <?php else: ?>
-      <tr>
-        <td colspan="<?= count($dataCols) + 1 ?>">No data found</td>
-      </tr>
-    <?php endif ?>
-  </tbody>
-</table>
+    </thead>
+    <tbody>
+      <?php if ($closest): ?>
+        <tr>
+          <td><?= h(Convert::toLocalTime($closest['ts'])) ?></td>
+          <?php foreach ($dataCols as $c): ?>
+            <td>
+              <?php if (in_array($c, ['WVHT', 'SwH', 'WWH'], true)): ?>
+                <?= h(Convert::metersToFeet((float)$closest[$c])) ?>
+              <?php else: ?>
+                <?= h($closest[$c]) ?>
+              <?php endif ?>
+            </td>
+          <?php endforeach ?>
+        </tr>
+      <?php else: ?>
+        <tr>
+          <td colspan="<?= count($dataCols) + 1 ?>">No data found</td>
+        </tr>
+      <?php endif ?>
+    </tbody>
+  </table>
 
-<h2>Spots by Angle of Incidence</h2>
+  <h2>Spots by Angle of Incidence</h2>
 <ul>
   <?php foreach ($matchingSpots as $s): ?>
+    <?php $s['aoi_category'] = $waveData->AOI_category($s['aoi']); ?>
     <li>
-      <?= h($s['spot_name']) ?> 
-      (angle: <?= h($s['spot_angle']) ?>°, AOI = <?= h($s['aoi']) ?>°)
+      <?= h($s['spot_name']) ?>
+      (AOI: <?= h(round($s['aoi'])) ?>°, <?= h($s['aoi_category']) ?>)
     </li>
   <?php endforeach ?>
 </ul>
 
+
 </body>
+
 </html>
