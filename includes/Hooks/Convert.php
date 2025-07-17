@@ -17,10 +17,10 @@ class Convert
     {
         $dt = new \DateTime($utcTime, new \DateTimeZone('UTC'));
         $dt->setTimezone(new \DateTimeZone($tz));
-        return $dt->format('Y-m-d H:i:s');
+        return $dt->format('l, F j, H:i'); // e.g., "Thursday, July 18, 14:05"
     }
     //convert meters to feet
-       public static function metersToFeet(float $meters, int $precision = 2): float
+    public static function metersToFeet(float $meters, int $precision = 2): float
     {
         return round($meters * 3.28084, $precision);
     }
