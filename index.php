@@ -53,7 +53,7 @@ function h($v): string {
     h1,h2 { margin-bottom:10px; }
   </style>
   <h2>
-    Current Observation | Station | UTC Converted
+    Current Observation | Station | <?= h($c) ?>(UTC)
   </h2>
   <table>
     <thead>

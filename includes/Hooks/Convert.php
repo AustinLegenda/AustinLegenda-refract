@@ -1,4 +1,5 @@
 <?php
+
 namespace Legenda\NormalSurf\Hooks;
 
 class Convert
@@ -9,5 +10,11 @@ class Convert
         $now = new \DateTime('now', $userTz);
         $now->setTimezone(new \DateTimeZone('UTC'));
         return $now->format('Y-m-d H:i:00');
+    }
+    public static function toLocalTime(string $utcTime, string $tz = 'America/New_York'): string
+    {
+        $dt = new \DateTime($utcTime, new \DateTimeZone('UTC'));
+        $dt->setTimezone(new \DateTimeZone($tz));
+        return $dt->format('Y-m-d H:i:s');
     }
 }
