@@ -76,7 +76,7 @@ function h($v): string
     }
   </style>
   <h2>
-    Current Observation | Station: <?php echo ($station); ?> | Timestamp of closest row (UTC)
+    Current Observation | Station: <?php echo ($station); ?> | <?php echo ($closest['ts']); ?> (UTC)
   </h2>
   <table>
     <thead>
