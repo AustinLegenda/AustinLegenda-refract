@@ -85,6 +85,7 @@ function h($v): string
     <thead>
       <tr>
         <th>Timestamp</th>
+        <td><?= h(Convert::toLocalTime($closest['ts'], 'America/New_York')) ?></td>
         <?php foreach ($dataCols as $c): ?>
           <th><?= h($c) ?></th>
         <?php endforeach ?>
@@ -94,7 +95,6 @@ function h($v): string
       <?php if ($closest): ?>
         <tr>
           <td><?= h($closest['ts']) ?></td>
-          <td><?= h(Convert::toLocalTime($closest['ts'], 'America/New_York')) ?></td>
           <?php foreach ($dataCols as $c): ?>
             <td><?= h($closest[$c]) ?></td>
           <?php endforeach ?>
