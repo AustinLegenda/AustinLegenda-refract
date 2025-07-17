@@ -76,8 +76,11 @@ function h($v): string
     }
   </style>
   <h2>
-    Current Observation | Station: <?php echo ($station); ?> | <?php echo ($closest['ts']); ?> (UTC)
+    Current Observatios Station: <?php echo ($station); ?> | <?php echo ($closest['ts']); ?> (UTC)
   </h2>
+  <h3>
+    Station: <?php echo ($station); ?>, <?php echo ($closest['ts']); ?> (UTC)
+  </h3>
   <table>
     <thead>
       <tr>
