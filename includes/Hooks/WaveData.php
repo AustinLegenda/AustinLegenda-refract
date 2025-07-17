@@ -23,4 +23,13 @@ class WaveData
         if ($aoi < 30) return 'Feathered';
         return 'Too Angled / Wrapped';
     }
+public function longshoreRisk(float $aoi): string
+{
+    if ($aoi > 60) return 'Severe';
+    if ($aoi > 45) return 'Strong';
+    if ($aoi > 30) return 'Moderate';
+    return 'Low';
+}
+
+
 }

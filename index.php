@@ -104,13 +104,15 @@ if ($closest && isset($closest['MWD'])) {
 
 <h2>Spots by Adjusted Angle of Incidence (Refraction Applied)</h2>
 <ul>
-  <?php foreach ($matchingSpots as $s): ?>
-    <li>
-      <?= h($s['spot_name']) ?> — 
-      Raw AOI: <?= h(round($s['aoi'])) ?>°, 
-      Adjusted AOI: <?= h(round($s['aoi_adjusted'])) ?>°, 
-      Category: <?= h($s['aoi_category']) ?>
-    </li>
+  <?php foreach ($matchingSpots as $s): 
+    $longshore = $waveData->longshoreRisk($s['aoi_adjusted']);?>
+    
+  <li>
+  <?= h($s['spot_name']) ?>
+  (AOI: <?= h(round($s['aoi_adjusted'])) ?>°, 
+  Category: <?= h($s['aoi_category']) ?>, 
+  Longshore: <?= h($longshore) ?>)
+</li>
   <?php endforeach ?>
 </ul>
 
