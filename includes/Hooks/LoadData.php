@@ -26,4 +26,23 @@ public static function conn_report(string $station = '41112'): array
 
     return [$pdo, $station, array_filter($columns, fn($c) => $c !== 'ts'), $colsList, $table];
 }
+
+public static function insert_data(PDO $pdo, string $station, array $parsedData): void
+{
+    $table = "station_" . preg_replace('/\D/', '', $station);
+    $columns = array_keys($parsedData[0]);
+    $placeholders = implode(',', array_fill(0, count($columns), '?'));
+    $colList = implode(',', $columns);
+
+    $stmt = $pdo->prepare("
+        INSERT IGNORE INTO `$table` ($colList)
+        VALUES ($placeholders)
+    ");
+
+    foreach ($parsedData as $row) {
+        $values = array_map(fn($v) => $v === '' ? null : $v, array_values($row));
+        $stmt->execute($values);
+    }
+}
+
 }

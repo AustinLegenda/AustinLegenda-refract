@@ -1,4 +1,5 @@
 <?php
+
 namespace Legenda\NormalSurf\API;
 
 use Legenda\NormalSurf\Hooks\SpectralDataParser;
@@ -38,11 +39,22 @@ class NoaaRequest
 
     public static function refresh_data()
     {
-        $stations = ['41112','41117'];
+        $stations = ['41112', '41117'];
         foreach ($stations as $station) {
             try {
-                $data = self::fetch_parsed_spec($station);
-                set_transient("noaa_spec_{$station}", $data, 30 * MINUTE_IN_SECONDS);
+                $parsed = self::fetch_parsed_spec($station);
+                set_transient("noaa_spec_{$station}", $parsed, 30 * MINUTE_IN_SECONDS);
+
+                require_once dirname(__DIR__, 2) . '/config.php';
+                $pdo = new \PDO(
+                    "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=utf8mb4",
+                    DB_USER,
+                    DB_PASS,
+                    [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION]
+                );
+
+                $filtered = \Legenda\NormalSurf\Hooks\SpectralDataParser::filter($parsed);
+                \Legenda\NormalSurf\Hooks\LoadData::insert_data($pdo, $station, $filtered['data']);
             } catch (\Exception $e) {
                 error_log("NOAA fetch failed for station {$station}: " . $e->getMessage());
             }
