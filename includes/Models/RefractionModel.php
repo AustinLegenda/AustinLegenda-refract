@@ -32,7 +32,7 @@ class RefractionModel
      * @param float $period         Deep water wave period (s)
      * @param float $nearshoreDepth Approximate depth at break (m)
      */
-    public static function depthRatio(float $period, float $nearshoreDepth = 3.5): float
+    public static function depthRatio(float $period, float $nearshoreDepth = 1.5): float
     {
         $c1 = self::deepWaterSpeed($period);
         $c2 = self::shallowWaterSpeed($nearshoreDepth);
@@ -47,7 +47,7 @@ class RefractionModel
      * @param float $depth       Nearshore depth in meters
      * @return float|null        Refracted angle in degrees, or null if total reflection
      */
-    public static function refractedAOI(float $aoiDegrees, float $period, float $depth = 5.5): ?float
+    public static function refractedAOI(float $aoiDegrees, float $period, float $depth = 1.5): ?float
     {
         $c1 = self::deepWaterSpeed($period);
         $c2 = self::shallowWaterSpeed($depth);
