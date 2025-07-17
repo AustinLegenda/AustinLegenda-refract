@@ -41,8 +41,7 @@ $data2 = $stmt2->fetch(PDO::FETCH_ASSOC);
 // 3. Prepare data
 $wvht = (float)($closest['WVHT'] ?? 1.0);
 $period = (float)($closest['SwP'] ?? $closest['WWP'] ?? 10);
-$report = new Report();
-$matchingSpots = $report->station_interpolation($pdo, $data1, $data2, $waveData);
+
 
 // 4. HTML escape helper
 function h($v): string
@@ -52,7 +51,8 @@ function h($v): string
 
 // 5. Wave + Spot Modeling
 $waveData = new WaveData();
-$matchingSpots = [];
+$report = new Report();
+$matchingSpots = $report->station_interpolation($pdo, $data1, $data2, $waveData);
 
 if ($closest && isset($closest['MWD'])) {
     $mwd = (float)$closest['MWD'];
