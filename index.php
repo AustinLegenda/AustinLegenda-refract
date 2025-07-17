@@ -97,11 +97,10 @@ function h($v): string
           <?php foreach ($dataCols as $c): ?>
             <td>
               <?php if (in_array($c, ['WVHT', 'SwH', 'WWH'], true)): ?>
-                <?= h($closest[$c]) ?> m (<?= h(Convert::metersToFeet((float)$closest[$c])) ?> ft)
+                <?= h(Convert::metersToFeet((float)$closest[$c])) ?>
               <?php else: ?>
                 <?= h($closest[$c]) ?>
               <?php endif ?>
-
             </td>
           <?php endforeach ?>
         </tr>
