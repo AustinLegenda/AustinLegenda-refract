@@ -16,7 +16,7 @@ use Legenda\NormalSurf\Models\RefractionModel;
 $targetTs = Convert::UTC_time();
 $stmt = $pdo->prepare("
     SELECT ts, {$colsList}
-    FROM wave_data
+    FROM station_41112
     WHERE ts <= ?
     ORDER BY ts DESC
     LIMIT 1

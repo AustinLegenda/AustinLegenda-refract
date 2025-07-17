@@ -28,14 +28,14 @@ class LoadData
         );
 
         // 2a) DELETE rows older than 24 hours (UTC)
-        //$pdo->exec("DELETE FROM wave_data WHERE ts < UTC_TIMESTAMP() - INTERVAL 24 HOUR");
+        //$pdo->exec("DELETE FROM station_41112 WHERE ts < UTC_TIMESTAMP() - INTERVAL 24 HOUR");
 
         // 3) Prepare insert statement
         $insertCols = array_merge(['ts'], $dataCols);
         $placeholders = implode(',', array_fill(0, count($insertCols), '?'));
 
         $sqlInsert = sprintf(
-            "INSERT IGNORE INTO wave_data (%s) VALUES (%s)",
+            "INSERT IGNORE INTO station_41112 (%s) VALUES (%s)",
             implode(',', $insertCols),
             $placeholders
         );
@@ -50,7 +50,7 @@ class LoadData
             $stmt->execute($params);
             //Load all data (50)
             $colsList = implode(',', $dataCols);
-            $stmtLatest = $pdo->query("SELECT ts, {$colsList} FROM wave_data ORDER BY ts DESC LIMIT 50");
+            $stmtLatest = $pdo->query("SELECT ts, {$colsList} FROM station_41112 ORDER BY ts DESC LIMIT 50");
             $latest = $stmtLatest->fetchAll(PDO::FETCH_ASSOC);
         }
         return [$pdo, $station, $dataCols, $colsList];
