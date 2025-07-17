@@ -11,7 +11,7 @@ use Legenda\NormalSurf\Models\RefractionModel;
 use Legenda\NormalSurf\Hooks\Report;
 
 [$pdo, $station1, $cols1, $colsList1, $table1] = LoadData::conn_report('41112');
-[$_, $station2, $cols2, $colsList2, $table2] = LoadData::conn_report('41117');
+[$_, $station2, $cols2, $colsList2, $table2] = LoadData::conn_report($pdo, '41117');
 
 $targetTs = Convert::UTC_time();
 
