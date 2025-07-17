@@ -22,33 +22,34 @@ class RefractionModel
         return sqrt(self::GRAVITY * $depth);
     }
 
+    /**
+     * Check if depth is valid (i.e., deeper than 1.3 × wave height).
+     */
     public static function isValidShoalDepth(float $waveHeight, float $depth): bool
     {
         return $depth > ($waveHeight * 1.3);
     }
 
     /**
-     * Calculate depth ratio (c2 / c1) used in Snell's Law.
-     * @param float $period         Deep water wave period (s)
-     * @param float $nearshoreDepth Approximate depth at break (m)
+     * Calculate refracted AOI, using Snell’s Law, or fallback to original AOI.
+     * @param float $aoiDegrees      Angle of incidence (degrees)
+     * @param float $period          Wave period (seconds)
+     * @param float $waveHeight      Wave height (meters)
+     * @param float|null $depth      Nearshore depth (meters), optional
+     * @return float Refracted AOI or original AOI if invalid
      */
-    public static function depthRatio(float $period, float $nearshoreDepth = 1.5): float
-    {
-        $c1 = self::deepWaterSpeed($period);
-        $c2 = self::shallowWaterSpeed($nearshoreDepth);
+    public static function safeRefractionAOI(
+        float $aoiDegrees,
+        float $period,
+        float $waveHeight,
+        ?float $depth = null
+    ): float {
+        $depth = $depth ?? max($waveHeight * 1.5, 4.0); // fallback safe depth
 
-        return $c2 / $c1;
-    }
+        if (!self::isValidShoalDepth($waveHeight, $depth)) {
+            return $aoiDegrees;
+        }
 
-    /**
-     * Calculate refracted angle of incidence using Snell’s Law.
-     * @param float $aoiDegrees  Angle of incidence in degrees
-     * @param float $period      Wave period in seconds
-     * @param float $depth       Nearshore depth in meters
-     * @return float|null        Refracted angle in degrees, or null if total reflection
-     */
-    public static function refractedAOI(float $aoiDegrees, float $period, float $depth = 1.5): ?float
-    {
         $c1 = self::deepWaterSpeed($period);
         $c2 = self::shallowWaterSpeed($depth);
 
@@ -56,7 +57,7 @@ class RefractionModel
         $sinTheta2 = (sin($theta1) * $c2) / $c1;
 
         if (abs($sinTheta2) > 1) {
-            return null; // total internal reflection (rare in water)
+            return $aoiDegrees; // fallback to original if total reflection
         }
 
         return rad2deg(asin($sinTheta2));

@@ -9,8 +9,10 @@ use Legenda\NormalSurf\Hooks\LoadData;
 use Legenda\NormalSurf\Hooks\WaveData;
 use Legenda\NormalSurf\Models\RefractionModel;
 
+// 1. Load NOAA data
 [$pdo, $station, $dataCols, $colsList] = LoadData::conn_report();
 
+// 2. Get latest buoy reading
 $targetTs = Convert::UTC_time();
 $stmt = $pdo->prepare("
     SELECT ts, {$colsList}
@@ -22,34 +24,39 @@ $stmt = $pdo->prepare("
 $stmt->execute([$targetTs]);
 $closest = $stmt->fetch(PDO::FETCH_ASSOC);
 
-// HTML ESCAPE
+// 3. Prepare data
+$wvht = (float)($closest['WVHT'] ?? 1.0);
+$period = (float)($closest['SwP'] ?? $closest['WWP'] ?? 10);
+
+// 4. HTML escape helper
 function h($v): string
 {
-  return htmlspecialchars((string)($v ?? ''), ENT_QUOTES, 'UTF-8');
+    return htmlspecialchars((string)($v ?? ''), ENT_QUOTES, 'UTF-8');
 }
 
+// 5. Wave + Spot Modeling
 $waveData = new WaveData();
 $matchingSpots = [];
 
 if ($closest && isset($closest['MWD'])) {
-  $mwd = (float)$closest['MWD'];
-  $period = (float)($closest['SwP'] ?? $closest['WWP'] ?? 10); // fallback to 10s
-  $nearshoreDepth = 3.5;
+    $mwd = (float)$closest['MWD'];
 
-  $stmtSpots = $pdo->query("SELECT id, spot_name, spot_angle FROM surf_spots");
+    $stmtSpots = $pdo->query("SELECT id, spot_name, spot_angle FROM surf_spots");
 
-  while ($spot = $stmtSpots->fetch(PDO::FETCH_ASSOC)) {
-    $spotAngle = (float)$spot['spot_angle'];
-    $aoiRaw = $waveData->AOI($spotAngle, $mwd);
-    $aoiAdjusted = RefractionModel::refractedAOI($aoiRaw, $period, $nearshoreDepth) ?? $aoiRaw;
+    while ($spot = $stmtSpots->fetch(PDO::FETCH_ASSOC)) {
+        $spotAngle = (float)$spot['spot_angle'];
+        $aoiRaw = $waveData->AOI($spotAngle, $mwd);
+        $aoiAdjusted = RefractionModel::safeRefractionAOI($aoiRaw, $period, $wvht);
 
-    $spot['aoi'] = $aoiRaw;
-    $spot['aoi_adjusted'] = $aoiAdjusted;
-    $spot['aoi_category'] = $waveData->AOI_category($aoiAdjusted);
-    $matchingSpots[] = $spot;
-  }
+        $spot['aoi'] = $aoiRaw;
+        $spot['aoi_adjusted'] = $aoiAdjusted;
+        $spot['aoi_category'] = $waveData->AOI_category($aoiAdjusted);
+        $spot['longshore'] = $waveData->longshoreRisk($aoiAdjusted);
 
-  usort($matchingSpots, fn($a, $b) => $a['aoi_adjusted'] <=> $b['aoi_adjusted']);
+        $matchingSpots[] = $spot;
+    }
+
+    usort($matchingSpots, fn($a, $b) => $a['aoi_adjusted'] <=> $b['aoi_adjusted']);
 }
 ?>
 <!DOCTYPE html>
@@ -104,15 +111,13 @@ if ($closest && isset($closest['MWD'])) {
 
 <h2>Spots by Adjusted Angle of Incidence (Refraction Applied)</h2>
 <ul>
-  <?php foreach ($matchingSpots as $s): 
-    $longshore = $waveData->longshoreRisk($s['aoi_adjusted']);?>
-    
-  <li>
-  <?= h($s['spot_name']) ?>
-  (AOI: <?= h(round($s['aoi_adjusted'])) ?>°, 
-  Category: <?= h($s['aoi_category']) ?>, 
-  Longshore: <?= h($longshore) ?>)
-</li>
+  <?php foreach ($matchingSpots as $s): ?>
+    <li>
+      <?= h($s['spot_name']) ?>
+      (AOI: <?= h(round($s['aoi_adjusted'])) ?>°, 
+      Category: <?= h($s['aoi_category']) ?>, 
+      Longshore: <?= h($s['longshore']) ?>)
+    </li>
   <?php endforeach ?>
 </ul>
 
