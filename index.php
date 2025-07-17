@@ -119,7 +119,7 @@ function h($v): string
     $stmtSpots = $pdo->query("SELECT id, spot_name, spot_angle FROM surf_spots");
 
     while ($spot = $stmtSpots->fetch(PDO::FETCH_ASSOC)) {
-      $aoi = $waveData->AOI((float)$spot['spot_angle'], $mwd);
+      $aoi = $report->AOI((float)$spot['spot_angle'], $mwd);
       $spot['aoi'] = $aoi;
       $matchingSpots[] = $spot;
     }
