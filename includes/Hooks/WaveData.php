@@ -2,7 +2,7 @@
 
 namespace Legenda\NormalSurf\Hooks;
 
-class Report
+class WaveData
 {
 
     public function dominate_period()
