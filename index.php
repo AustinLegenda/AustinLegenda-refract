@@ -10,70 +10,34 @@ use Legenda\NormalSurf\Hooks\WaveData;
 use Legenda\NormalSurf\Models\RefractionModel;
 use Legenda\NormalSurf\Hooks\Report;
 
-// 1. Load NOAA data
 [$pdo, $station1, $cols1, $colsList1, $table1] = LoadData::conn_report('41112');
 [$_, $station2, $cols2, $colsList2, $table2] = LoadData::conn_report('41117');
 
-// 2. Get latest buoy reading
 $targetTs = Convert::UTC_time();
 
-$stmt1 = $pdo->prepare("
-    SELECT ts, {$colsList1}
-    FROM {$table1}
-    WHERE ts <= ?
-    ORDER BY ts DESC
-    LIMIT 1
-");
+// Buoy 41112
+$stmt1 = $pdo->prepare("SELECT ts, {$colsList1} FROM {$table1} WHERE ts <= ? ORDER BY ts DESC LIMIT 1");
 $stmt1->execute([$targetTs]);
 $data1 = $stmt1->fetch(PDO::FETCH_ASSOC);
 
-$stmt2 = $pdo->prepare("
-    SELECT ts, {$colsList2}
-    FROM {$table2}
-    WHERE ts <= ?
-    ORDER BY ts DESC
-    LIMIT 1
-");
+// Buoy 41117
+$stmt2 = $pdo->prepare("SELECT ts, {$colsList2} FROM {$table2} WHERE ts <= ? ORDER BY ts DESC LIMIT 1");
 $stmt2->execute([$targetTs]);
 $data2 = $stmt2->fetch(PDO::FETCH_ASSOC);
 
-
-// 3. Prepare data
-$wvht = (float)($closest['WVHT'] ?? 1.0);
-$period = (float)($closest['SwP'] ?? $closest['WWP'] ?? 10);
-
-
-// 4. HTML escape helper
-function h($v): string
-{
-    return htmlspecialchars((string)($v ?? ''), ENT_QUOTES, 'UTF-8');
+if (!$data1 || !$data2) {
+  die('Missing data for one or both buoys.');
 }
 
-// 5. Wave + Spot Modeling
+function h($v): string {
+  return htmlspecialchars((string)($v ?? ''), ENT_QUOTES, 'UTF-8');
+}
+
 $waveData = new WaveData();
 $report = new Report();
 $matchingSpots = $report->station_interpolation($pdo, $data1, $data2, $waveData);
 
-if ($closest && isset($closest['MWD'])) {
-    $mwd = (float)$closest['MWD'];
-
-    $stmtSpots = $pdo->query("SELECT id, spot_name, spot_angle FROM surf_spots");
-
-    while ($spot = $stmtSpots->fetch(PDO::FETCH_ASSOC)) {
-        $spotAngle = (float)$spot['spot_angle'];
-        $aoiRaw = $waveData->AOI($spotAngle, $mwd);
-        $aoiAdjusted = RefractionModel::safeRefractionAOI($aoiRaw, $period, $wvht);
-
-        $spot['aoi'] = $aoiRaw;
-        $spot['aoi_adjusted'] = $aoiAdjusted;
-        $spot['aoi_category'] = $waveData->AOI_category($aoiAdjusted);
-        $spot['longshore'] = $waveData->longshoreRisk($aoiAdjusted);
-
-        $matchingSpots[] = $spot;
-    }
-
-    usort($matchingSpots, fn($a, $b) => $a['aoi_adjusted'] <=> $b['aoi_adjusted']);
-}
+usort($matchingSpots, fn($a, $b) => $a['aoi_adjusted'] <=> $b['aoi_adjusted']);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -89,47 +53,14 @@ if ($closest && isset($closest['MWD'])) {
 </head>
 <body>
 
-<h2>Current Observations</h2>
-<h3>
-  Station: <?= h($station) ?>, <?= h($closest['ts']) ?> (UTC)
-</h3>
+<h2>Interpolated Spot Report</h2>
+<p>Using station data from <?= h($station1) ?> and <?= h($station2) ?> at <?= h($data1['ts']) ?> UTC</p>
 
-<table>
-  <thead>
-    <tr>
-      <th>Timestamp</th>
-      <?php foreach ($dataCols as $c): ?>
-        <th><?= h($c) ?></th>
-      <?php endforeach ?>
-    </tr>
-  </thead>
-  <tbody>
-    <?php if ($closest): ?>
-      <tr>
-        <td><?= h(Convert::toLocalTime($closest['ts'])) ?></td>
-        <?php foreach ($dataCols as $c): ?>
-          <td>
-            <?php if (in_array($c, ['WVHT', 'SwH', 'WWH'], true)): ?>
-              <?= h(Convert::metersToFeet((float)$closest[$c])) ?>
-            <?php else: ?>
-              <?= h($closest[$c]) ?>
-            <?php endif ?>
-          </td>
-        <?php endforeach ?>
-      </tr>
-    <?php else: ?>
-      <tr>
-        <td colspan="<?= count($dataCols) + 1 ?>">No data found</td>
-      </tr>
-    <?php endif ?>
-  </tbody>
-</table>
-
-<h2>Spots by Adjusted Angle of Incidence (Refraction Applied)</h2>
+<h3>Spots by Adjusted Angle of Incidence (Refraction Applied)</h3>
 <ul>
   <?php foreach ($matchingSpots as $s): ?>
     <li>
-      <?= h($s['spot_name']) ?>
+      <?= h($s['spot_name']) ?>  
       (AOI: <?= h(round($s['aoi_adjusted'])) ?>°, 
       Category: <?= h($s['aoi_category']) ?>, 
       Longshore: <?= h($s['longshore']) ?>)
