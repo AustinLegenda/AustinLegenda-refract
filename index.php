@@ -26,34 +26,57 @@ $closest = $stmt->fetch(PDO::FETCH_ASSOC);
 // 3) MATCH SURF SPOTS BY MWD ANGLE
 $matchingSpots = [];
 if ($closest && isset($closest['MWD'])) {
-    $mwd = (int)$closest['MWD'];
-    $stmtSpots = $pdo->prepare("
+  $mwd = (int)$closest['MWD'];
+  $stmtSpots = $pdo->prepare("
         SELECT id, spot_name, spot_angle, ABS(spot_angle - ?) AS distance
         FROM surf_spots
         ORDER BY distance ASC
     ");
-    $stmtSpots->execute([$mwd]);
-    $matchingSpots = $stmtSpots->fetchAll(PDO::FETCH_ASSOC);
+  $stmtSpots->execute([$mwd]);
+  $matchingSpots = $stmtSpots->fetchAll(PDO::FETCH_ASSOC);
 }
 
 // HTML ESCAPE
-function h($v): string {
-    return htmlspecialchars((string)($v ?? ''), ENT_QUOTES, 'UTF-8');
+function h($v): string
+{
+  return htmlspecialchars((string)($v ?? ''), ENT_QUOTES, 'UTF-8');
 }
 ?>
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <style>
-    body { font-family: sans-serif; margin:20px; }
-    table { border-collapse: collapse; width:100%; margin-bottom:30px; }
-    th, td { padding:6px 10px; border:1px solid #ccc; text-align:center; }
-    th { background:#eee; }
-    h1,h2 { margin-bottom:10px; }
+    body {
+      font-family: sans-serif;
+      margin: 20px;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-bottom: 30px;
+    }
+
+    th,
+    td {
+      padding: 6px 10px;
+      border: 1px solid #ccc;
+      text-align: center;
+    }
+
+    th {
+      background: #eee;
+    }
+
+    h1,
+    h2 {
+      margin-bottom: 10px;
+    }
   </style>
   <h2>
-    Current Observation | Station | <?= h($c) ?>(UTC)
+    Current Observation | Station | <?php foreach ($dataCols as $c): ?> <?= h($c) ?> <?php endforeach ?>(UTC)
   </h2>
   <table>
     <thead>
@@ -89,5 +112,6 @@ function h($v): string {
       </li>
     <?php endforeach ?>
   </ul>
-</body>
+  </body>
+
 </html>
