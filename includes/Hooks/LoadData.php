@@ -28,7 +28,7 @@ class LoadData
         );
 
         // 2a) DELETE rows older than 24 hours (UTC)
-        $pdo->exec("DELETE FROM wave_data WHERE ts < UTC_TIMESTAMP() - INTERVAL 24 HOUR");
+        //$pdo->exec("DELETE FROM wave_data WHERE ts < UTC_TIMESTAMP() - INTERVAL 24 HOUR");
 
         // 3) Prepare insert statement
         $insertCols = array_merge(['ts'], $dataCols);

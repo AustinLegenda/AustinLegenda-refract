@@ -6,6 +6,7 @@ require_once __DIR__ . '/vendor/autoload.php';
 
 use Legenda\NormalSurf\Hooks\Convert;
 use Legenda\NormalSurf\Hooks\LoadData;
+use Legenda\NormalSurf\Hooks\Report;
 
 // 1) Load the NOAA wave data into the DB
 [$pdo, $station, $dataCols, $colsList] = LoadData::conn_report();
@@ -111,16 +112,28 @@ function h($v): string
       <?php endif ?>
     </tbody>
   </table>
+  <?php $report = new Report();
+  $matchingSpots = [];
+  if ($closest && isset($closest['MWD'])) {
+    $mwd = (float)$closest['MWD'];
+    $stmtSpots = $pdo->query("SELECT id, spot_name, spot_angle FROM surf_spots");
 
-  <h2>Surf Spots by Angle Difference (MWD = <?= h($closest['MWD'] ?? 'n/a') ?>°)</h2>
-  <ul>
-    <?php foreach ($matchingSpots as $s): ?>
-      <li>
-        <?= h($s['spot_name']) ?>
-        (angle: <?= h($s['spot_angle']) ?>°, Δ=<?= h($s['distance']) ?>°)
-      </li>
-    <?php endforeach ?>
-  </ul>
+    while ($spot = $stmtSpots->fetch(PDO::FETCH_ASSOC)) {
+      $aoi = $waveData->AOI((float)$spot['spot_angle'], $mwd);
+      $spot['aoi'] = $aoi;
+      $matchingSpots[] = $spot;
+    }
+
+    // Optionally sort by smallest angle of incidence
+    usort($matchingSpots, fn($a, $b) => $a['aoi'] <=> $b['aoi']);
+  } ?>
+
+  <li>
+    <?= h($s['spot_name']) ?>
+    (angle: <?= h($s['spot_angle']) ?>°, AOI = <?= h($s['aoi']) ?>°)
+  </li>
+
+
   </body>
 
 </html>

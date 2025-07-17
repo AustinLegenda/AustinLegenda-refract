@@ -2,7 +2,7 @@
 
 namespace Legenda\NormalSurf\Hooks;
 
-class WaveData
+class Report
 {
 
     public function dominate_period()
@@ -18,5 +18,10 @@ class WaveData
 
         $surfPeriod = ($E_sw >= $E_ww) ? $swP : $wwP;
     }
-}
 
+    public function AOI(float $spotAngle, float $swellDirection): float
+    {
+        $diff = abs($spotAngle - $swellDirection);
+        return ($diff > 180) ? 360 - $diff : $diff;
+    }
+}
