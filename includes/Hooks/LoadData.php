@@ -35,8 +35,8 @@ public static function insert_data(PDO $pdo, string $station, array $rows): void
     }
 
     $table = "station_" . preg_replace('/\D/', '', $station);
-    $columns = array_keys($rows[0]);
-    $columns = array_filter($columns, fn($c) => $c !== 'ts');
+    $columns = SpectralDataParser::filter(['columns' => array_keys($rows[0]), 'data' => []])['columns'];
+
 
     $colList = implode(',', array_merge(['ts'], $columns));
     $placeholders = implode(',', array_fill(0, count($columns) + 1, '?'));

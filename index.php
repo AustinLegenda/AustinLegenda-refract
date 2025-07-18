@@ -34,7 +34,8 @@ use Legenda\NormalSurf\Hooks\SpectralDataParser;
 
 $parsed = NoaaRequest::fetch_parsed_spec('41117');
 $filtered = SpectralDataParser::filter($parsed);
-LoadData::insert_data($pdo, '41117', $filtered['data']);
+LoadData::insert_data($pdo, '41117', $filtered['data'], $filtered['columns']);
+
  
 
 if (!$data1 || !$data2) {
