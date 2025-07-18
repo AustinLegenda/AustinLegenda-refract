@@ -12,9 +12,6 @@ use Legenda\NormalSurf\Hooks\Report;
 
 use Legenda\NormalSurf\API\NoaaRequest;
 
-NoaaRequest::refresh_data();
-die('Refreshed manually');
-
 
 [$pdo, $station1, $cols1, $colsList1, $table1] = LoadData::conn_report('41112');
 [$_, $station2, $cols2, $colsList2, $table2] = LoadData::conn_report('41117');

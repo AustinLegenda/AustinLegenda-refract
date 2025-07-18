@@ -4,26 +4,24 @@ namespace Legenda\NormalSurf\Repositories;
 
 use Legenda\NormalSurf\API\NoaaRequest;
 
-// Fallbacks for non-WordPress environments
+// Define fallback functions if not in WordPress
 if (!function_exists('get_transient')) {
-    function get_transient($key)
-    {
-        return false; // bypass cache in dev
+    function get_transient($key) {
+        return false; // Always miss cache outside WP
     }
 
-    function set_transient($key, $value, $expire)
-    {
-        return true;
-    }
-
-    if (!defined('MINUTE_IN_SECONDS')) {
-        define('MINUTE_IN_SECONDS', 60);
+    function set_transient($key, $value, $expire) {
+        return true; // Do nothing outside WP
     }
 }
-/**
- * cron job
- * */
 
+if (!defined('MINUTE_IN_SECONDS')) {
+    define('MINUTE_IN_SECONDS', 60);
+}
+
+/**
+ * NOAA Repository – fetches and caches .spec data
+ */
 class NoaaRepository
 {
     public static function get_data(string $station = '41112'): array
@@ -40,7 +38,7 @@ class NoaaRepository
             set_transient($key, $data, 30 * MINUTE_IN_SECONDS);
             return $data;
         } catch (\Exception $e) {
-            error_log("NOAA Repository Error: " . $e->getMessage());
+            error_log("NOAA Repository Error for {$station}: " . $e->getMessage());
             return ['columns' => [], 'data' => []];
         }
     }
