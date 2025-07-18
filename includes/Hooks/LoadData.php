@@ -27,20 +27,17 @@ class LoadData
         return [$pdo, $station, array_filter($columns, fn($c) => $c !== 'ts'), $colsList, $table];
     }
 
-    public static function insert_data(PDO $pdo, string $station): void
+    public static function insert_data(PDO $pdo, string $station, array $rows): void
     {
         $table = "station_" . preg_replace('/\D/', '', $station);
-        $data = \Legenda\NormalSurf\Repositories\NoaaRepository::get_data($station);
-        $filtered = \Legenda\NormalSurf\Hooks\SpectralDataParser::filter($data);
-
-        $columns = $filtered['columns'];
-        $rows = $filtered['data'];
-
         if (empty($rows)) return;
+
+        // You might still need to get columns for this station
+        $parsed = \Legenda\NormalSurf\Repositories\NoaaRepository::get_data($station);
+        $columns = \Legenda\NormalSurf\Hooks\SpectralDataParser::filter($parsed)['columns'];
 
         $colList = implode(',', array_merge(['ts'], $columns));
         $placeholders = implode(',', array_fill(0, count($columns) + 1, '?'));
-
         $sql = "INSERT IGNORE INTO `$table` ($colList) VALUES ($placeholders)";
         $stmt = $pdo->prepare($sql);
 

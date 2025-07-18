@@ -39,8 +39,12 @@ class NoaaRequest
 
     public static function refresh_data()
     {
+        
         $stations = ['41112', '41117'];
+        
         foreach ($stations as $station) {
+            error_log("Running refresh_data for station {$station}");
+
             try {
                 $parsed = self::fetch_parsed_spec($station);
                 set_transient("noaa_spec_{$station}", $parsed, 30 * MINUTE_IN_SECONDS);
