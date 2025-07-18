@@ -3,6 +3,8 @@
 namespace Legenda\NormalSurf\API;
 
 use Legenda\NormalSurf\Hooks\SpectralDataParser;
+use Legenda\NormalSurf\Hooks\LoadData;
+
 
 class NoaaRequest
 {
@@ -57,8 +59,8 @@ class NoaaRequest
                     [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION]
                 );
 
-                $filtered = \Legenda\NormalSurf\Hooks\SpectralDataParser::filter($parsed);
-                \Legenda\NormalSurf\Hooks\LoadData::insert_data($pdo, $station, $filtered['data']);
+                $filtered = SpectralDataParser::filter($parsed);
+                LoadData::insert_data($pdo, $station, $filtered['data']);
             } catch (\Exception $e) {
                 error_log("NOAA fetch failed for station {$station}: " . $e->getMessage());
             }
