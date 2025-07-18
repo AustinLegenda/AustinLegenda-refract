@@ -42,6 +42,7 @@ class Report
             $spot['aoi'] = $aoiRaw;
             $spot['aoi_adjusted'] = $aoiAdjusted;
             $spot['aoi_category'] = $waveData->AOI_category($aoiAdjusted);
+            $spot['longshore'] = $waveData->longshoreRisk($aoiAdjusted);
 
             $matchingSpots[] = $spot;
         }
