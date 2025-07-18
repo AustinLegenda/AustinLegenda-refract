@@ -5,6 +5,7 @@ namespace Legenda\NormalSurf\API;
 use Legenda\NormalSurf\Hooks\SpectralDataParser;
 use Legenda\NormalSurf\Hooks\LoadData;
 
+
 class NoaaRequest
 {
     public static function fetch_raw_spec(string $station): array
@@ -40,8 +41,9 @@ class NoaaRequest
 
     public static function refresh_data()
     {
+        
         $stations = ['41112', '41117'];
-
+        
         foreach ($stations as $station) {
             error_log("Running refresh_data for station {$station}");
 
@@ -57,21 +59,8 @@ class NoaaRequest
                     [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION]
                 );
 
-                // Remove ts from the columns to avoid duplication
                 $filtered = SpectralDataParser::filter($parsed);
-                $rows = $filtered['data'];
-
-                if (!empty($rows)) {
-                    // Ensure ts is NOT duplicated in the insert statement
-                    foreach ($rows as &$row) {
-                        foreach (['YY','MM','DD','hh','mm'] as $c) {
-                            unset($row[$c]);
-                        }
-                    }
-                }
-
-                LoadData::insert_data($pdo, $station, $rows);
-
+                LoadData::insert_data($pdo, $station, $filtered['data']);
             } catch (\Exception $e) {
                 error_log("NOAA fetch failed for station {$station}: " . $e->getMessage());
             }
