@@ -1,8 +1,7 @@
 <?php
-
-define('DB_HOST', '157.245.209.9');
+define('DB_HOST', 'localhost');
 define('DB_NAME', 'mdpngsfhzc');
-define('DB_USER', 'mdpngsfhzc');
-define('DB_PASS', 'Qj4B2z3fWt');
-$conn = new PDO("mysql:host=157.245.209.9;dbname=mdpngsfhzc", "mdpngsfhzc", "Qj4B2z3fWt");
+define('DB_USER', 'root');
+define('DB_PASS', 'root');
+$conn = new PDO("mysql:host=localhost;dbname=mdpngsfhzc", "root", "root");
 ?>

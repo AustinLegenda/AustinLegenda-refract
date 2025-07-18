@@ -31,14 +31,15 @@ class Report
 
         $avgRadians = atan2($sumSin, $sumCos);
         $avgDegrees = rad2deg($avgRadians);
-        return ($avgDegrees + 360) % 360; // Normalize to [0, 360)
+        return fmod($avgDegrees + 360.0, 360.0);
     }
 
 
     public function station_interpolation(\PDO $pdo, array $data1, array $data2, WaveData $waveData): array
     {
-        $matchingSpots = [];
+        // inside Report::station_interpolation
 
+        $matchingSpots = [];
         $stmtSpots = $pdo->query("SELECT id, spot_name, spot_angle, spot_lat, spot_lon FROM surf_spots");
         $spots = $stmtSpots->fetchAll(\PDO::FETCH_ASSOC);
 
@@ -65,8 +66,8 @@ class Report
             $weight2 = $inv2 / $total;
 
             // Interpolate MWD
-            $mwd1 = $data1['mwd'] ?? null;
-            $mwd2 = $data2['mwd'] ?? null;
+            $mwd1 = $data1['MWD'] ?? null;
+            $mwd2 = $data2['MWD'] ?? null;
 
             if ($mwd1 === null || $mwd2 === null) {
                 continue; // Skip if either station is missing direction data
@@ -76,7 +77,9 @@ class Report
             $interpolatedMWD = $this->circularAverage([$mwd1, $mwd2], [$weight1, $weight2]);
 
             // Calculate AOI
-            $adjustedAOI = RefractionModel::safeRefractionAOI($interpolatedMWD, $spotAngle, $data1['wvht'] ?? null, $data1['per'] ?? null);
+            $adjustedAOI = RefractionModel::safeRefractionAOI($interpolatedMWD, $spotAngle, $data1['WVHT'] ?? null, $data1['APD'] ?? null);
+            $aoi_category = $waveData->AOI_category($adjustedAOI);
+            $longshore = $waveData->longshoreRisk($adjustedAOI);
 
             $matchingSpots[] = [
                 'spot_id' => $spot['id'],
@@ -85,9 +88,51 @@ class Report
                 'adjusted_aoi' => round($adjustedAOI, 2),
                 'dist_41112' => round($dist1, 2),
                 'dist_41117' => round($dist2, 2),
+                'aoi_category' => $aoi_category,
+                'longshore' => $longshore,
             ];
+        }
+        if (empty($matchingSpots)) {
+
+            exit;
         }
 
         return $matchingSpots;
     }
+
+   public function interpolate_midpoint_row(array $data1, array $data2, array $distances): array
+{
+    $columns = ['ts', 'WVHT', 'SwH', 'SwP', 'WWH', 'WWP', 'SwD', 'WWD', 'APD', 'MWD', 'STEEPNESS'];
+
+    $dist1 = $distances['dist_41112'] ?? 1;
+    $dist2 = $distances['dist_41117'] ?? 1;
+
+    $inv1 = 1 / ($dist1 + 0.01);
+    $inv2 = 1 / ($dist2 + 0.01);
+    $total = $inv1 + $inv2;
+    $w1 = $inv1 / $total;
+    $w2 = $inv2 / $total;
+
+    $mid = [];
+
+    foreach ($columns as $col) {
+        if ($col === 'ts') {
+            $mid[$col] = '—';
+        } elseif ($col === 'MWD') {
+            $mid[$col] = $this->circularAverage(
+                [$data1['MWD'] ?? 0, $data2['MWD'] ?? 0],
+                [$w1, $w2]
+            );
+        } else {
+            $v1 = is_numeric($data1[$col] ?? null) ? $data1[$col] : null;
+            $v2 = is_numeric($data2[$col] ?? null) ? $data2[$col] : null;
+            $mid[$col] = ($v1 !== null && $v2 !== null)
+                ? $v1 * $w1 + $v2 * $w2
+                : '—';
+        }
+    }
+
+    return $mid;
+}
+
 }

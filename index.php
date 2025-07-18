@@ -9,9 +9,7 @@ use Legenda\NormalSurf\Hooks\LoadData;
 use Legenda\NormalSurf\Hooks\WaveData;
 use Legenda\NormalSurf\Models\RefractionModel;
 use Legenda\NormalSurf\Hooks\Report;
-
 use Legenda\NormalSurf\API\NoaaRequest;
-
 
 [$pdo, $station1, $cols1, $colsList1, $table1] = LoadData::conn_report('41112');
 [$_, $station2, $cols2, $colsList2, $table2] = LoadData::conn_report('41117');
@@ -32,7 +30,8 @@ if (!$data1 || !$data2) {
   die('Missing data for one or both buoys.');
 }
 
-function h($v): string {
+function h($v): string
+{
   return htmlspecialchars((string)($v ?? ''), ENT_QUOTES, 'UTF-8');
 }
 
@@ -40,35 +39,96 @@ $waveData = new WaveData();
 $report = new Report();
 $matchingSpots = $report->station_interpolation($pdo, $data1, $data2, $waveData);
 
-usort($matchingSpots, fn($a, $b) => $a['aoi_adjusted'] <=> $b['aoi_adjusted']);
+// Sort by adjusted AOI
+usort($matchingSpots, fn($a, $b) => $a['adjusted_aoi'] <=> $b['adjusted_aoi']);
+
+// Compute weighted midpoint using first spot’s distances as reference
+$distances = $matchingSpots[0] ?? [];
+$midpoint_row = $report->interpolate_midpoint_row($data1, $data2, $distances);
+
+$station_rows = [
+  '41112' => $data1,
+  '41117' => $data2,
+  'Weighted Midpoint' => $midpoint_row,
+];
+
+$station_columns = ['ts', 'WVHT', 'SwH', 'SwP', 'WWH', 'WWP', 'SwD', 'WWD', 'APD', 'MWD', 'STEEPNESS'];
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <style>
-    body { font-family: sans-serif; margin: 20px; }
-    table { border-collapse: collapse; width: 100%; margin-bottom: 30px; }
-    th, td { padding: 6px 10px; border: 1px solid #ccc; text-align: center; }
-    th { background: #eee; }
-    h1, h2 { margin-bottom: 10px; }
+    body {
+      font-family: sans-serif;
+      margin: 20px;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-bottom: 30px;
+    }
+
+    th,
+    td {
+      padding: 6px 10px;
+      border: 1px solid #ccc;
+      text-align: center;
+    }
+
+    th {
+      background: #eee;
+    }
+
+    h1,
+    h2 {
+      margin-bottom: 10px;
+    }
   </style>
 </head>
+
 <body>
-<h2>Interpolated Spot Report</h2>
-<p>Using station data from <?= h($station1) ?> and <?= h($station2) ?> at <?= h($data1['ts']) ?> UTC</p>
+  <h2>Latest Observations</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Station</th>
+        <?php foreach ($station_columns as $col): ?>
+          <th><?= h($col) ?></th>
+        <?php endforeach; ?>
+      </tr>
+    </thead>
+    <tbody>
+      <?php foreach ($station_rows as $station => $data): ?>
+        <tr>
+          <td><?= h($station) ?></td>
+          <?php foreach ($station_columns as $col): ?>
+            <td>
+              <?= is_numeric($data[$col] ?? null) ? round($data[$col], 2) : h($data[$col] ?? '—') ?>
+            </td>
+          <?php endforeach; ?>
+        </tr>
+      <?php endforeach; ?>
+    </tbody>
+  </table>
 
-<h3>Spots by Adjusted Angle of Incidence (Refraction Applied)</h3>
-<ul>
-  <?php foreach ($matchingSpots as $s): ?>
-    <li>
-      <?= h($s['spot_name']) ?>  
-      (AOI: <?= h(round($s['aoi_adjusted'])) ?>°, 
-      Category: <?= h($s['aoi_category']) ?>, 
-      Longshore: <?= h($s['longshore']) ?>)
-    </li>
-  <?php endforeach ?>
-</ul>
+  <h2>Interpolated Spot Report</h2>
+  <p>Using station data from <?= h($station1) ?> and <?= h($station2) ?> at <?= h($data1['ts']) ?> UTC</p>
 
+  <h3>Spots by Adjusted Angle of Incidence (Refraction Applied)</h3>
+  <ul>
+    <?php foreach ($matchingSpots as $s): ?>
+      <li>
+        <?= h($s['spot_name']) ?>
+        (AOI: <?= h(round($s['adjusted_aoi'])) ?>°,
+        Category: <?= h($s['aoi_category']) ?>,
+        Longshore: <?= h($s['longshore']) ?>)
+      </li>
+    <?php endforeach ?>
+  </ul>
 </body>
+
 </html>
