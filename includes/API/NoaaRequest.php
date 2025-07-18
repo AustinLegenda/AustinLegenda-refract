@@ -43,26 +43,13 @@ class NoaaRequest
         $stations = ['41112', '41117'];
 
         foreach ($stations as $station) {
-            error_log("Running refresh_data for station {$station}");
-
             try {
-                $parsed = self::fetch_parsed_spec($station);
+                error_log("Refreshing data for station $station");
 
-                // 🔥 This filters out 'YY', 'MM', 'DD', 'hh', 'mm'
-                $filtered = SpectralDataParser::filter($parsed);
+                // This will fetch, parse, insert, and return DB connection + latest data
+                [$pdo, $station, $cols, $colsList, $table] = \Legenda\NormalSurf\Hooks\LoadData::conn_report($station);
 
-                // Set transient cache (safe for WP or no-op fallback)
-                set_transient("noaa_spec_{$station}", $filtered, 30 * MINUTE_IN_SECONDS);
-
-                require_once dirname(__DIR__, 2) . '/config.php';
-                $pdo = new \PDO(
-                    "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=utf8mb4",
-                    DB_USER,
-                    DB_PASS,
-                    [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION]
-                );
-
-                LoadData::insert_data($pdo, $station, $filtered['data']);
+                error_log("Insert complete for station $station");
             } catch (\Exception $e) {
                 error_log("NOAA fetch failed for station {$station}: " . $e->getMessage());
             }
