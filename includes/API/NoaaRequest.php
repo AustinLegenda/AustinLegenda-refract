@@ -42,7 +42,7 @@ class NoaaRequest
     public static function refresh_data()
     {
         
-        $stations = ['41112', '41117'];
+        $stations = ['41117'];
         
         foreach ($stations as $station) {
             error_log("Running refresh_data for station {$station}");
