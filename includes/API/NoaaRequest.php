@@ -43,7 +43,8 @@ class NoaaRequest
         $stations = ['41112', '41117'];
         
         foreach ($stations as $station) {
-            error_log("Running refresh_data for station {$station}");
+            echo "<p><strong>NOAA fetch failed for station {$station}:</strong> </p>";
+
 
             try {
                 $parsed = self::fetch_parsed_spec($station);
