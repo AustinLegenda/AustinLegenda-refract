@@ -29,12 +29,13 @@ class LoadData
 
     public static function insert_data(PDO $pdo, string $station, array $rows): void
     {
-        $table = "station_" . preg_replace('/\D/', '', $station);
         if (empty($rows)) return;
 
-        // You might still need to get columns for this station
-        $parsed = \Legenda\NormalSurf\Repositories\NoaaRepository::get_data($station);
-        $columns = \Legenda\NormalSurf\Hooks\SpectralDataParser::filter($parsed)['columns'];
+        $table = "station_" . preg_replace('/\D/', '', $station);
+
+        // Use columns from first row
+        $columns = array_keys($rows[0]);
+        $columns = array_filter($columns, fn($c) => $c !== 'ts');
 
         $colList = implode(',', array_merge(['ts'], $columns));
         $placeholders = implode(',', array_fill(0, count($columns) + 1, '?'));
