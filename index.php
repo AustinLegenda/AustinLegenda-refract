@@ -55,7 +55,6 @@ usort($matchingSpots, fn($a, $b) => $a['aoi_adjusted'] <=> $b['aoi_adjusted']);
   </style>
 </head>
 <body>
-Hello?
 <h2>Interpolated Spot Report</h2>
 <p>Using station data from <?= h($station1) ?> and <?= h($station2) ?> at <?= h($data1['ts']) ?> UTC</p>
 
