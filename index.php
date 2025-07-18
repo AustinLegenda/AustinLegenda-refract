@@ -10,7 +10,10 @@ use Legenda\NormalSurf\Hooks\WaveData;
 use Legenda\NormalSurf\Models\RefractionModel;
 use Legenda\NormalSurf\Hooks\Report;
 
-\Legenda\NormalSurf\API\NoaaRequest::refresh_data();
+use Legenda\NormalSurf\API\NoaaRequest;
+
+NoaaRequest::refresh_data();
+die('Refreshed manually');
 
 
 [$pdo, $station1, $cols1, $colsList1, $table1] = LoadData::conn_report('41112');
