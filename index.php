@@ -28,6 +28,15 @@ $stmt2 = $pdo->prepare("SELECT ts, {$colsList2} FROM {$table2} WHERE ts <= ? ORD
 $stmt2->execute([$targetTs]);
 $data2 = $stmt2->fetch(PDO::FETCH_ASSOC);
 
+
+use Legenda\NormalSurf\Hooks\SpectralDataParser;
+
+
+$parsed = NoaaRequest::fetch_parsed_spec('41117');
+$filtered = SpectralDataParser::filter($parsed);
+LoadData::insert_data($pdo, '41117', $filtered['data']);
+ 
+
 if (!$data1 || !$data2) {
   die('Missing data for one or both buoys.');
 }
