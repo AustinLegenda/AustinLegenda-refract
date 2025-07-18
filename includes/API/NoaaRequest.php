@@ -5,7 +5,6 @@ namespace Legenda\NormalSurf\API;
 use Legenda\NormalSurf\Hooks\SpectralDataParser;
 use Legenda\NormalSurf\Hooks\LoadData;
 
-
 class NoaaRequest
 {
     public static function fetch_raw_spec(string $station): array
@@ -41,15 +40,19 @@ class NoaaRequest
 
     public static function refresh_data()
     {
-        
         $stations = ['41112', '41117'];
-        
+
         foreach ($stations as $station) {
             error_log("Running refresh_data for station {$station}");
 
             try {
                 $parsed = self::fetch_parsed_spec($station);
-                set_transient("noaa_spec_{$station}", $parsed, 30 * MINUTE_IN_SECONDS);
+
+                // 🔥 This filters out 'YY', 'MM', 'DD', 'hh', 'mm'
+                $filtered = SpectralDataParser::filter($parsed);
+
+                // Set transient cache (safe for WP or no-op fallback)
+                set_transient("noaa_spec_{$station}", $filtered, 30 * MINUTE_IN_SECONDS);
 
                 require_once dirname(__DIR__, 2) . '/config.php';
                 $pdo = new \PDO(
@@ -59,7 +62,6 @@ class NoaaRequest
                     [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION]
                 );
 
-                $filtered = SpectralDataParser::filter($parsed);
                 LoadData::insert_data($pdo, $station, $filtered['data']);
             } catch (\Exception $e) {
                 error_log("NOAA fetch failed for station {$station}: " . $e->getMessage());
