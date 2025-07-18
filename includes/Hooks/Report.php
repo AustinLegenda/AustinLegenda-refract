@@ -6,48 +6,70 @@ use Legenda\NormalSurf\Models\RefractionModel;
 
 class Report
 {
-    /**
-     * Interpolates data between stations 41112 and 41117 for each surf spot.
-     *
-     * @param \PDO $pdo
-     * @param array $data1 - Wave data from station_41112 (must include WVHT, SwP, MWD)
-     * @param array $data2 - Wave data from station_41117 (same structure)
-     * @param WaveData $waveData - Instance of WaveData for AOI calculation
-     * @return array $matchingSpots - Each spot enriched with interpolated and AOI values
-     */
+    private function haversine($lat1, $lon1, $lat2, $lon2): float
+    {
+        $earth_radius = 6371; // km
+        $dLat = deg2rad($lat2 - $lat1);
+        $dLon = deg2rad($lon2 - $lon1);
+        $a = sin($dLat / 2) * sin($dLat / 2) +
+            cos(deg2rad($lat1)) * cos(deg2rad($lat2)) *
+            sin($dLon / 2) * sin($dLon / 2);
+        $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
+        return $earth_radius * $c;
+    }
+
     public function station_interpolation(\PDO $pdo, array $data1, array $data2, WaveData $waveData): array
     {
         $matchingSpots = [];
 
         $stmtSpots = $pdo->query("SELECT id, spot_name, spot_angle, spot_lat, spot_lon FROM surf_spots");
+        $spots = $stmtSpots->fetchAll(\PDO::FETCH_ASSOC);
 
-        while ($spot = $stmtSpots->fetch(\PDO::FETCH_ASSOC)) {
-            $lat = (float)$spot['spot_lat'];
-            $lon = (float)$spot['spot_lon'];
+        // Buoy coordinates — adjust if needed
+        $stationCoords = [
+            'station_41112' => ['lat' => 34.638, 'lon' => -76.818],
+            'station_41117' => ['lat' => 34.197, 'lon' => -77.792],
+        ];
 
-            $d1 = WaveData::distanceBetween($lat, $lon, 30.709, -81.292); // 41112
-            $d2 = WaveData::distanceBetween($lat, $lon, 30.681, -81.212); // 41117
+        foreach ($spots as $spot) {
+            $spotLat = $spot['spot_lat'];
+            $spotLon = $spot['spot_lon'];
+            $spotAngle = $spot['spot_angle'];
 
-            $total = $d1 + $d2;
-            $w1 = 1 - ($d1 / $total);
-            $w2 = 1 - $w1;
+            // Calculate distances
+            $dist1 = $this->haversine($spotLat, $spotLon, $stationCoords['station_41112']['lat'], $stationCoords['station_41112']['lon']);
+            $dist2 = $this->haversine($spotLat, $spotLon, $stationCoords['station_41117']['lat'], $stationCoords['station_41117']['lon']);
 
-            $wvht   = ($data1['WVHT'] * $w1) + ($data2['WVHT'] * $w2);
-            $period = ($data1['SwP']  * $w1) + ($data2['SwP']  * $w2);
-            $mwd    = ($data1['MWD']  * $w1) + ($data2['MWD']  * $w2);
+            // Compute weights
+            $inv1 = 1 / ($dist1 + 0.01);
+            $inv2 = 1 / ($dist2 + 0.01);
+            $total = $inv1 + $inv2;
+            $weight1 = $inv1 / $total;
+            $weight2 = $inv2 / $total;
 
-            $aoiRaw = $waveData->AOI((float)$spot['spot_angle'], $mwd);
-            $aoiAdjusted = RefractionModel::safeRefractionAOI($aoiRaw, $period, $wvht);
+            // Interpolate MWD
+            $mwd1 = $data1['mwd'] ?? null;
+            $mwd2 = $data2['mwd'] ?? null;
 
-            $spot['aoi'] = $aoiRaw;
-            $spot['aoi_adjusted'] = $aoiAdjusted;
-            $spot['aoi_category'] = $waveData->AOI_category($aoiAdjusted);
-            $spot['longshore'] = $waveData->longshoreRisk($aoiAdjusted);
+            if ($mwd1 === null || $mwd2 === null) {
+                continue; // Skip if either station is missing direction data
+            }
 
-            $matchingSpots[] = $spot;
+            // Basic weighted average — assumes MWD values are close (no circular averaging)
+            $interpolatedMWD = $mwd1 * $weight1 + $mwd2 * $weight2;
+
+            // Calculate AOI
+            $adjustedAOI = RefractionModel::safeRefractionAOI($interpolatedMWD, $spotAngle, $data1['wvht'] ?? null, $data1['per'] ?? null);
+
+            $matchingSpots[] = [
+                'spot_id' => $spot['id'],
+                'spot_name' => $spot['spot_name'],
+                'interpolated_mwd' => round($interpolatedMWD, 1),
+                'adjusted_aoi' => round($adjustedAOI, 2),
+                'dist_41112' => round($dist1, 2),
+                'dist_41117' => round($dist2, 2),
+            ];
         }
-
-        usort($matchingSpots, fn($a, $b) => $a['aoi_adjusted'] <=> $b['aoi_adjusted']);
 
         return $matchingSpots;
     }
