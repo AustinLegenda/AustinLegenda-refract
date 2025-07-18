@@ -1,9 +1,7 @@
 <?php
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-ini_set('log_errors', 0); // disable logging
+// index.php
 error_reporting(E_ALL);
-
+ini_set('display_errors', '1');
 require_once __DIR__ . '/vendor/autoload.php';
 
 use Legenda\NormalSurf\Hooks\Convert;
@@ -13,7 +11,7 @@ use Legenda\NormalSurf\Models\RefractionModel;
 use Legenda\NormalSurf\Hooks\Report;
 
 [$pdo, $station1, $cols1, $colsList1, $table1] = LoadData::conn_report('41112');
-[$_, $station2, $cols2, $colsList2, $table2] = LoadData::conn_report($pdo, '41117');
+[$_, $station2, $cols2, $colsList2, $table2] = LoadData::conn_report('41117');
 
 $targetTs = Convert::UTC_time();
 
