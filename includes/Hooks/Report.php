@@ -18,6 +18,23 @@ class Report
         return $earth_radius * $c;
     }
 
+    private function circularAverage(array $angles, array $weights): float
+    {
+        $sumSin = 0.0;
+        $sumCos = 0.0;
+
+        foreach ($angles as $i => $angle) {
+            $radians = deg2rad($angle);
+            $sumSin += sin($radians) * $weights[$i];
+            $sumCos += cos($radians) * $weights[$i];
+        }
+
+        $avgRadians = atan2($sumSin, $sumCos);
+        $avgDegrees = rad2deg($avgRadians);
+        return ($avgDegrees + 360) % 360; // Normalize to [0, 360)
+    }
+
+
     public function station_interpolation(\PDO $pdo, array $data1, array $data2, WaveData $waveData): array
     {
         $matchingSpots = [];
@@ -56,7 +73,7 @@ class Report
             }
 
             // Basic weighted average — assumes MWD values are close (no circular averaging)
-            $interpolatedMWD = $mwd1 * $weight1 + $mwd2 * $weight2;
+            $interpolatedMWD = $this->circularAverage([$mwd1, $mwd2], [$weight1, $weight2]);
 
             // Calculate AOI
             $adjustedAOI = RefractionModel::safeRefractionAOI($interpolatedMWD, $spotAngle, $data1['wvht'] ?? null, $data1['per'] ?? null);
