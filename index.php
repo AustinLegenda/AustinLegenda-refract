@@ -39,11 +39,12 @@ $waveData = new WaveData();
 $report = new Report();
 $matchingSpots = $report->station_interpolation($pdo, $data1, $data2, $waveData);
 
-// Sort by adjusted AOI
-//usort($matchingSpots, fn($a, $b) => $a['adjusted_aoi'] <=> $b['adjusted_aoi']);
-
 // Compute weighted midpoint using first spot’s distances as reference
-$distances = $matchingSpots[0] ?? [];
+if (empty($matchingSpots)) {
+  echo "<p>No spots match your criteria.</p>";
+  exit;
+}
+$distances = $matchingSpots[0];
 $midpoint_row = $report->interpolate_midpoint_row($data1, $data2, $distances);
 
 $station_rows = [
@@ -122,9 +123,11 @@ $station_columns = ['ts', 'WVHT', 'SwH', 'SwP', 'WWH', 'WWP', 'SwD', 'WWD', 'APD
   <h3>Ideal Spots Based on Dominate Period and Median Direction</h3>
   <ul>
     <?php foreach ($matchingSpots as $s): ?>
-      <li>
-        <?= h($s['spot_name']) ?>
-      </li>
+     <li>
+  <?= h($s['spot_name']) ?>
+  (Period: <?= h($s['dominant_period']) ?>s,
+   Dir: <?= h($s['interpolated_mwd']) ?>&deg;)
+</li>
     <?php endforeach ?>
   </ul>
 </body>
