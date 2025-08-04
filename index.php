@@ -85,36 +85,58 @@ $matchingSpots = $report->station_interpolation(
     th, td { padding: 6px 10px; border: 1px solid #ccc; text-align: center; }
     th { background: #eee; }
     h1,h2 { margin-bottom: 10px; }
+    .station-report {
+  display: flex;
+  gap: 20px;
+  /* if you want them the same width: */
+  /* justify-content: space-between; */
+}
+
+.station-report__item {
+  flex: 1;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  text-align: center;
+}
   </style>
 </head>
 <body>
 
-  <section aria-labelledby="surf-report-heading">
-    <h2 id="surf-report-heading">Surf Report</h2>
+<section aria-labelledby="surf-report-heading">
+  <h2 id="surf-report-heading">Surf Report</h2>
+  <div class="station-report">
     <?php foreach ($station_rows as $key => $row): ?>
-      <h4><?= h($row['label']) ?></h4>
-      <h3>
-        <?php if (is_numeric($row['data']['WVHT'])): ?>
-          <?= round(Convert::metersToFeet((float)$row['data']['WVHT']), 2) ?>&nbsp;ft
-        <?php else: ?>
-          &mdash; ft
-        <?php endif; ?>
-         @
-        <?php if (is_numeric($row['data']['SwP'])): ?>
-          <?= round((float)$row['data']['SwP'], 2) ?>&nbsp;s
-        <?php else: ?>
-          &mdash; s
-        <?php endif; ?>
-         &amp;
-        <?php if (is_numeric($row['data']['MWD'])): ?>
-          <?= round((float)$row['data']['MWD'], 0) ?>&deg;
-        <?php else: ?>
-          &mdash; &deg;
-        <?php endif; ?>
-      </h3>
-    <?php endforeach; ?>
-  </section>
+      <div class="station-report__item">
+        <h4><?= h($row['label']) ?></h4>
+        <h3>
+          <?php if (is_numeric($row['data']['WVHT'])): ?>
+            <?= round(Convert::metersToFeet((float)$row['data']['WVHT']), 2) ?>&nbsp;ft
+          <?php else: ?>
+            &mdash; ft
+          <?php endif; ?>
 
+          @
+
+          <?php if (is_numeric($row['data']['SwP'])): ?>
+            <?= round((float)$row['data']['SwP'], 2) ?>&nbsp;s
+          <?php else: ?>
+            &mdash; s
+          <?php endif; ?>
+
+          &amp;
+
+          <?php if (is_numeric($row['data']['MWD'])): ?>
+            <?= round((float)$row['data']['MWD'], 0) ?>&deg;
+          <?php else: ?>
+            &mdash; &deg;
+          <?php endif; ?>
+        </h3>
+      </div>
+    <?php endforeach; ?>
+  </div>
+</section>
+ 
   <section aria-labelledby="ideal-spots-heading">
     <h2 id="ideal-spots-heading">Ideal Spots Based on Dominant Period &amp; Median Direction</h2>
     <ul>
