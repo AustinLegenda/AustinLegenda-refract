@@ -12,8 +12,8 @@ class Report
         $dLat = deg2rad($lat2 - $lat1);
         $dLon = deg2rad($lon2 - $lon1);
         $a = sin($dLat / 2) * sin($dLat / 2) +
-             cos(deg2rad($lat1)) * cos(deg2rad($lat2)) *
-             sin($dLon / 2) * sin($dLon / 2);
+            cos(deg2rad($lat1)) * cos(deg2rad($lat2)) *
+            sin($dLon / 2) * sin($dLon / 2);
         $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
         return $earth_radius * $c;
     }
@@ -128,12 +128,10 @@ class Report
                 'dist_41117'       => round($dist2, 2),
             ];
         }
-echo '<div style="padding:8px;margin:10px 0;background:#fff3cd;border:1px solid #ffeeba;">';
-echo    "<p><strong>Debug:</strong> Dominant period = {$dominantPeriod}s</p>";
-echo    "<p><strong>Debug:</strong> Interpolated MWD  = {$interpMWD}&deg;</p>";
-echo '</div>';
+
         if (empty($matchingSpots)) {
-            exit;
+            echo    "<p><strong>Debug:</strong> Dominant period = {$dominantPeriod}s</p>";
+            echo    "<p><strong>Debug:</strong> Interpolated MWD  = {$interpMWD}&deg;</p>";
         }
 
         return $matchingSpots;
