@@ -40,7 +40,7 @@ $report = new Report();
 $matchingSpots = $report->station_interpolation($pdo, $data1, $data2, $waveData);
 
 // Sort by adjusted AOI
-usort($matchingSpots, fn($a, $b) => $a['adjusted_aoi'] <=> $b['adjusted_aoi']);
+//usort($matchingSpots, fn($a, $b) => $a['adjusted_aoi'] <=> $b['adjusted_aoi']);
 
 // Compute weighted midpoint using first spot’s distances as reference
 $distances = $matchingSpots[0] ?? [];
@@ -123,9 +123,6 @@ $station_columns = ['ts', 'WVHT', 'SwH', 'SwP', 'WWH', 'WWP', 'SwD', 'WWD', 'APD
     <?php foreach ($matchingSpots as $s): ?>
       <li>
         <?= h($s['spot_name']) ?>
-        (AOI: <?= h(round($s['adjusted_aoi'])) ?>°,
-        Category: <?= h($s['aoi_category']) ?>,
-        Longshore: <?= h($s['longshore']) ?>)
       </li>
     <?php endforeach ?>
   </ul>
