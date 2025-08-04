@@ -109,14 +109,22 @@ if (! empty($matchingSpots)) {
 <?php foreach ($station_rows as $label => $row): ?>
   <h4><?= h($label) ?></h4>
   <h3>
-    <?= is_numeric($row['WVHT']) ? round($row['WVHT'],2) : '&mdash;' ?>
+    <?= is_numeric($row['WVHT'])
+         ? Convert::metersToFeet((float)$row['WVHT'])
+         : '&mdash;'
+    ?> ft
     @
-    <?= is_numeric($row['SwP'])  ? round($row['SwP'],2)  :'&mdash;' ?> s
+    <?= is_numeric($row['SwP'])
+         ? round($row['SwP'], 2)
+         : '&mdash;'
+    ?> s
     &amp;
-    <?= is_numeric($row['MWD'])  ? round($row['MWD'],0)  :'&mdash;' ?>&deg;
+    <?= is_numeric($row['MWD'])
+         ? round($row['MWD'], 0)
+         : '&mdash;'
+    ?>&deg;
   </h3>
-<?php endforeach; ?>
-  <h3>Ideal Spots Based on Dominate Period and Median Direction</h3>
+<?php endforeach; ?>  <h3>Ideal Spots Based on Dominate Period and Median Direction</h3>
   <h5>Adjusted For Refraction</h5>
 <ul>
   <?php if (empty($matchingSpots)): ?>
