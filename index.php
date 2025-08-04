@@ -131,7 +131,7 @@ if (! empty($matchingSpots)) {
 
   <h2>Interpolated Surf Report</h2>
   <h5>Using station data from <?= h($station1) ?> and <?= h($station2) ?> at <?= h($data1['ts']) ?> UTC</h5>
-<p>Signifcant Wave Height of WVHT at (dominate direction) with a median wave direction of (MWD)
+<h3>WVHT @ (dominate period) & (MWD)º</h3>
   <h3>Ideal Spots Based on Dominate Period and Median Direction</h3>
   <h5>Adjusted For Refraction</h5>
 <ul>
