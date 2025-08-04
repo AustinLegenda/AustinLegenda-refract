@@ -121,15 +121,18 @@ $station_columns = ['ts', 'WVHT', 'SwH', 'SwP', 'WWH', 'WWP', 'SwD', 'WWD', 'APD
   <p>Using station data from <?= h($station1) ?> and <?= h($station2) ?> at <?= h($data1['ts']) ?> UTC</p>
 
   <h3>Ideal Spots Based on Dominate Period and Median Direction</h3>
-  <ul>
+<ul>
+  <?php if (empty($matchingSpots)): ?>
+    <li>No spots match your criteria.</li>
+  <?php else: ?>
     <?php foreach ($matchingSpots as $s): ?>
-     <li>
-  <?= h($s['spot_name']) ?>
-  (Period: <?= h($s['dominant_period']) ?>s,
-   Dir: <?= h($s['interpolated_mwd']) ?>&deg;)
-</li>
-    <?php endforeach ?>
-  </ul>
-</body>
+      <li>
+        <?= h($s['spot_name']) ?>
+        (Period: <?= h($s['dominant_period']) ?>s,
+         Dir: <?= h($s['interpolated_mwd']) ?>&deg;)
+      </li>
+    <?php endforeach; ?>
+  <?php endif; ?>
+</ul></body>
 
 </html>
