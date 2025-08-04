@@ -124,8 +124,7 @@ if (! empty($matchingSpots)) {
          : '&mdash;'
     ?>&deg;
   </h3>
-<?php endforeach; ?>  <h3>Ideal Spots Based on Dominate Period and Median Direction</h3>
-  <h5>Adjusted For Refraction</h5>
+<?php endforeach; ?>  <h2>Ideal Spots Based on Dominate Period and Median Direction</h2>
 <ul>
   <?php if (empty($matchingSpots)): ?>
     <li>No spots match your criteria.</li>
