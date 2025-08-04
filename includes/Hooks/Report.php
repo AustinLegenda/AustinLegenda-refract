@@ -85,6 +85,16 @@ class Report
             // interpolated MWD
             $interpMWD = $this->circularAverage([$mwd1, $mwd2], [$w1, $w2]);
 
+              printf(
+          "<p style='margin:4px;padding:4px;background:#eef'>%s → dist1=%.1fkm, dist2=%.1fkm, w1=%.2f, w2=%.2f, interpMWD=%.1f°</p>",
+          htmlspecialchars($spot['spot_name'], ENT_QUOTES, 'UTF-8'),
+          $dist1,
+          $dist2,
+          $w1,
+          $w2,
+          $interpMWD
+        );
+
             // full midpoint row for all variables
             $mid = $this->interpolate_midpoint_row(
                 $data1,
@@ -117,8 +127,6 @@ class Report
             ) {
                 continue;
             }
-
-
 
             // record match
             $matchingSpots[] = [
