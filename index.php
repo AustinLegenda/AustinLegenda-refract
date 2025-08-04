@@ -135,7 +135,7 @@ $matchingSpots = $report->station_interpolation(
   <section aria-labelledby="latest-observations-heading">
     <h2 id="latest-observations-heading">Latest Observations</h2>
     <table>
-      <caption>Latest observations from buoys and interpolated midpoint</caption>
+     
       <thead>
         <tr>
           <th>Station</th>
@@ -147,7 +147,7 @@ $matchingSpots = $report->station_interpolation(
       <tbody>
         <?php foreach ($station_rows as $station => $info): ?>
           <tr>
-            <td><?= h($info['label']) ?></td>
+            <td><?= h($station) ?></td>
             <?php foreach ($station_columns as $col): ?>
               <td>
                 <?php
