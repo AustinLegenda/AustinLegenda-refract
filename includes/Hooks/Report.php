@@ -96,7 +96,7 @@ class Report
             $dominantPeriod = ($mid['SwH'] >= $mid['WWH'])
                 ? $mid['SwP']
                 : $mid['WWP'];
-            $dominantPeriod = round($dominantPeriod, 1);
+            $dominantPeriod = round($dominantPeriod, 2);
 
             // spot's allowed ranges
             $pMin = (float) $spot['period_min'];
