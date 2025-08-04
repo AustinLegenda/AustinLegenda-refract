@@ -40,7 +40,7 @@ class Report
         // inside Report::station_interpolation
 
         $matchingSpots = [];
-        $stmtSpots = $pdo->query("SELECT id, spot_name, /*spot_angle,*/ region_lat, region_lon FROM surf_spots AS INNER JOIN regions AS ON regional_id = id");
+        $stmtSpots = $pdo->query("SELECT s.id, s.spot_name, /*spot_angle,*/ r.region_lat, r.region_lon FROM surf_spots AS s INNER JOIN regions AS r ON s.regional_id = r.id");
         $spots = $stmtSpots->fetchAll(\PDO::FETCH_ASSOC);
 
         // Buoy coordinates — adjust if needed
