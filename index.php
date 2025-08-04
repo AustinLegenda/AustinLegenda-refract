@@ -39,17 +39,17 @@ $waveData = new WaveData();
 $report = new Report();
 $matchingSpots = $report->station_interpolation($pdo, $data1, $data2, $waveData);
 
-// Compute weighted midpoint using first spot’s distances as reference
-
-$distances = $matchingSpots[0];
-$midpoint_row = $report->interpolate_midpoint_row($data1, $data2, $distances);
-
 $station_rows = [
   '41112' => $data1,
-  'Weighted Midpoint' => $midpoint_row,
   '41117' => $data2,
-  
 ];
+
+// If we found at least one matching spot, compute & append the weighted midpoint
+if (! empty($matchingSpots)) {
+    $distances    = $matchingSpots[0];
+    $midpoint_row = $report->interpolate_midpoint_row($data1, $data2, $distances);
+    $station_rows['Weighted Midpoint'] = $midpoint_row;
+}
 
 $station_columns = ['ts', 'WVHT', 'SwH', 'SwP', 'WWH', 'WWP', 'SwD', 'WWD', 'APD', 'MWD', 'STEEPNESS'];
 ?>
