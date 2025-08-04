@@ -118,6 +118,14 @@ class Report
                 continue;
             }
 
+            // Echo every spot’s name + its interpolated MWD
+foreach ($matchingSpots as $spot) {
+    // round to 2 decimals or whatever precision you like
+    $mwd = round($spot['interpolated_mwd'], 2);
+    echo "<p>Region: " . h($spot['spot_name'])
+       . " — Interpolated MWD: {$mwd}&deg;</p>";
+}
+
             // record match
             $matchingSpots[] = [
                 'spot_id'          => $spot['id'],
