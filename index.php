@@ -56,7 +56,7 @@ foreach ($station_columns as $col) {
 }
 $station_rows = [
   '41112' => $data1,
-  $station_rows['Interpolated Median'] = $absolute_mid,
+ 'Interpolated Median' => $absolute_mid,
   '41117'  => $data2,
 ];
 
