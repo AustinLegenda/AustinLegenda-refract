@@ -78,7 +78,7 @@ $matchingSpots = $report->station_interpolation(
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Surf Report</title>
+  <title>Normal Surf</title>
   <style>
     body { font-family: sans-serif; margin: 20px; }
     table { border-collapse: collapse; width: 100%; margin-bottom: 30px; }
