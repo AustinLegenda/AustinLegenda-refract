@@ -48,8 +48,9 @@ $midpoint_row = $report->interpolate_midpoint_row($data1, $data2, $distances);
 
 $station_rows = [
   '41112' => $data1,
-  '41117' => $data2,
   'Weighted Midpoint' => $midpoint_row,
+  '41117' => $data2,
+  
 ];
 
 $station_columns = ['ts', 'WVHT', 'SwH', 'SwP', 'WWH', 'WWP', 'SwD', 'WWD', 'APD', 'MWD', 'STEEPNESS'];
@@ -118,7 +119,7 @@ $station_columns = ['ts', 'WVHT', 'SwH', 'SwP', 'WWH', 'WWP', 'SwD', 'WWD', 'APD
   <h2>Interpolated Spot Report</h2>
   <p>Using station data from <?= h($station1) ?> and <?= h($station2) ?> at <?= h($data1['ts']) ?> UTC</p>
 
-  <h3>Spots by Adjusted Angle of Incidence (Refraction Applied)</h3>
+  <h3>Ideal Spots Based on Dominate Period and Median Direction</h3>
   <ul>
     <?php foreach ($matchingSpots as $s): ?>
       <li>
