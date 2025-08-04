@@ -61,12 +61,12 @@ $station_rows = [
 ];
 
 
-// spot‐weighted midpoint:
+/*// spot‐weighted midpoint:
 if (! empty($matchingSpots)) {
   $distances    = $matchingSpots[0];
   $spot_weighted = $report->interpolate_midpoint_row($data1, $data2, $distances);
   $station_rows['Spot-Weighted Midpoint'] = $spot_weighted;
-}
+}*/
 ?>
 
 <!DOCTYPE html>
