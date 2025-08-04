@@ -128,7 +128,10 @@ class Report
                 'dist_41117'       => round($dist2, 2),
             ];
         }
-
+echo '<div style="padding:8px;margin:10px 0;background:#fff3cd;border:1px solid #ffeeba;">';
+echo    "<p><strong>Debug:</strong> Dominant period = {$dominantPeriod}s</p>";
+echo    "<p><strong>Debug:</strong> Interpolated MWD  = {$interpMWD}&deg;</p>";
+echo '</div>';
         if (empty($matchingSpots)) {
             exit;
         }

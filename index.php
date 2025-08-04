@@ -42,6 +42,7 @@ $matchingSpots = $report->station_interpolation($pdo, $data1, $data2, $waveData)
 // Compute weighted midpoint using first spot’s distances as reference
 if (empty($matchingSpots)) {
   echo "<p>No spots match your criteria.</p>";
+  exit;
 }
 $distances = $matchingSpots[0];
 $midpoint_row = $report->interpolate_midpoint_row($data1, $data2, $distances);
