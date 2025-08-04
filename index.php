@@ -39,20 +39,32 @@ $waveData = new WaveData();
 $report = new Report();
 $matchingSpots = $report->station_interpolation($pdo, $data1, $data2, $waveData);
 
+// 1) First, declare your columns:
+$station_columns = ['ts','WVHT','SwH','SwP','WWH','WWP','SwD','WWD','APD','MWD','STEEPNESS'];
+
+// 2) Always start with the two real buoys:
 $station_rows = [
   '41112' => $data1,
-  '41117' => $data2,
+  '4117'  => $data2,
 ];
 
-// If we found at least one matching spot, compute & append the weighted midpoint
-if (! empty($matchingSpots)) {
-    $distances    = $matchingSpots[0];
-    $midpoint_row = $report->interpolate_midpoint_row($data1, $data2, $distances);
-    $station_rows['Weighted Midpoint'] = $midpoint_row;
+// 3a) Compute the _absolute_ midpoint (50/50 mean):
+$absolute_mid = [];
+foreach ($station_columns as $col) {
+  $v1 = $data1[$col] ?? null;
+  $v2 = $data2[$col] ?? null;
+  $absolute_mid[$col] = (is_numeric($v1) && is_numeric($v2))
+    ? ($v1 + $v2) / 2
+    : null;
 }
+$station_rows['Absolute Midpoint'] = $absolute_mid;
 
-$station_columns = ['ts', 'WVHT', 'SwH', 'SwP', 'WWH', 'WWP', 'SwD', 'WWD', 'APD', 'MWD', 'STEEPNESS'];
-?>
+// 3b) If you _also_ want the spot‐weighted midpoint:
+if (! empty($matchingSpots)) {
+  $distances    = $matchingSpots[0];
+  $spot_weighted = $report->interpolate_midpoint_row($data1, $data2, $distances);
+  $station_rows['Spot-Weighted Midpoint'] = $spot_weighted;
+}?>
 
 <!DOCTYPE html>
 <html lang="en">
