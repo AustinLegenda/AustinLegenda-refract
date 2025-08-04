@@ -86,7 +86,7 @@ class Report
             $ratio = $dist1 / ($dist2 + 0.0001);
 
             // if one station is much closer, snap to its MWD; otherwise blend
-            if ($ratio < 0.2) {
+            if ($ratio < 0.33) {
                 $interpMWD = $mwd1;
             } elseif ($ratio > 5) {
                 $interpMWD = $mwd2;
