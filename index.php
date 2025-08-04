@@ -105,7 +105,31 @@ if (! empty($matchingSpots)) {
 </head>
 
 <body>
-  <h2>Latest Observations</h2>
+<?php foreach ($station_rows as $label => $row): ?>
+  <h4><?= h($label) ?></h4>
+  <h3>
+    <?= is_numeric($row['WVHT']) ? round($row['WVHT'],2) : '&mdash;' ?>
+    @
+    <?= is_numeric($row['SwP'])  ? round($row['SwP'],2)  :'&mdash;' ?> s
+    &amp;
+    <?= is_numeric($row['MWD'])  ? round($row['MWD'],0)  :'&mdash;' ?>&deg;
+  </h3>
+<?php endforeach; ?>
+<ul>
+  <?php if (empty($matchingSpots)): ?>
+    <li>No spots match your criteria.</li>
+  <?php else: ?>
+    <?php foreach ($matchingSpots as $s): ?>
+      <li>
+        <?= h($s['spot_name']) ?>
+        (Period: <?= h($s['dominant_period']) ?>s,
+         Dir: <?= h($s['interpolated_mwd']) ?>&deg;)
+      </li>
+    <?php endforeach; ?>
+  <?php endif; ?>
+</ul>
+
+ <h2>Latest Observations</h2>
   <table>
     <thead>
       <tr>
@@ -129,27 +153,9 @@ if (! empty($matchingSpots)) {
     </tbody>
   </table>
 
-  <h2>Interpolated Surf Report</h2>
-  <h5>Using station data from <?= h($station1) ?> and <?= h($station2) ?> at <?= h($data1['ts']) ?> UTC</h5>
-<h3>WVHT @ (dominate period) & (MWD)º</h3>
-  <h3>Ideal Spots Based on Dominate Period and Median Direction</h3>
-  <h5>Adjusted For Refraction</h5>
-<ul>
-  <?php if (empty($matchingSpots)): ?>
-    <li>No spots match your criteria.</li>
-  <?php else: ?>
-    <?php foreach ($matchingSpots as $s): ?>
-      <li>
-        <?= h($s['spot_name']) ?>
-        (Period: <?= h($s['dominant_period']) ?>s,
-         Dir: <?= h($s['interpolated_mwd']) ?>&deg;)
-      </li>
-    <?php endforeach; ?>
-  <?php endif; ?>
-</ul>
-
 <h5>Release Notes:</h5>
- <p>Current spot list includes zones indicating significant wave concentration from St. Mary's Entrance to 13th Ave. S. in Jacksonville Beach. Mapping southward of the 13th Ave. S. will ensue in the near future. Though at first glance few indicators of wave concentration exist from South Jacksonville Beach southward until the begning of the Vilano shoals at the southern end of South Ponte Vedra.   </p>
+ <p>List of spot includes zones indicating significant wave concentration from St. Mary's Entrance to 13th Ave. S. in Jacksonville Beach and are adjusted for refraction at various swell directions, periods, and prominant bathematry. Mapping southward of the 13th Ave. S. will ensue in the near future. Though at first glance few indicators of wave concentration exist from South Jacksonville Beach to the Vilano shoals at the southern end of South Ponte Vedra.   </p>
+<p>Future verisions will implement tide and wind data, as well as forecasting.</p>
 </body>
 
 </html>
