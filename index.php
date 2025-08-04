@@ -184,9 +184,13 @@ $matchingSpots = $report->station_interpolation(
     </table>
   </section>
 
-  <h5>Release Notes:</h5>
-  <p>List of spots includes zones indicating significant wave concentration from St. Mary's Entrance to 13th Ave. S in Jacksonville Beach and are adjusted for refraction at various swell directions, periods, and prominent bathymetry. Mapping southward of the 13th Ave. S will ensue in the near future. Though at first glance few indicators of wave concentration exist from South Jacksonville Beach to the Vilano shoals at the southern end of Ponte Vedra.</p>
-  <p>Future versions will implement tide and wind data, as well as forecasting.</p>
+<h5>Release Notes:</h5>
+<p>
+  The spots list is derived from zones indicating significant wave concentration; from St. Mary’s Entrance to 13th Ave. S., Jacksonville Beach. Each zone is adjusted for refraction across various swell directions and periods over prominent bathymetry. Continued mapping southward will follow in the near future, although initial tests show few high-energy zones between South Jacksonville Beach and the Vilano shoals at the southern end of "South Ponte Vedra".
+</p>
+<p>
+  Future versions will integrate tide and wind data into the spot-selection model, along with forecasting and other features that support local intuition.
+</p>
 
 </body>
 </html>
