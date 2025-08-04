@@ -105,6 +105,7 @@ if (! empty($matchingSpots)) {
 </head>
 
 <body>
+  <h2>Surf Report</h2>
 <?php foreach ($station_rows as $label => $row): ?>
   <h4><?= h($label) ?></h4>
   <h3>
@@ -115,6 +116,8 @@ if (! empty($matchingSpots)) {
     <?= is_numeric($row['MWD'])  ? round($row['MWD'],0)  :'&mdash;' ?>&deg;
   </h3>
 <?php endforeach; ?>
+  <h3>Ideal Spots Based on Dominate Period and Median Direction</h3>
+  <h5>Adjusted For Refraction</h5>
 <ul>
   <?php if (empty($matchingSpots)): ?>
     <li>No spots match your criteria.</li>
