@@ -40,7 +40,7 @@ class Report
         // inside Report::station_interpolation
 
         $matchingSpots = [];
-        $stmtSpots = $pdo->query("SELECT s.id, s.spot_name, /*spot_angle,*/ r.region_lat, r.region_lon FROM surf_spots AS s INNER JOIN regions AS r ON s.regional_id = r.id");
+        $stmtSpots = $pdo->query("SELECT s.id, s.spot_name, r.region_lat, r.region_lon FROM surf_spots AS s INNER JOIN regions AS r ON s.regional_id = r.id");
         $spots = $stmtSpots->fetchAll(\PDO::FETCH_ASSOC);
 
         // Buoy coordinates — adjust if needed
@@ -52,7 +52,6 @@ class Report
         foreach ($spots as $spot) {
             $regLat = $spot['region_lat'];
             $regLon = $spot['region_lon'];
-           // $spotAngle = $spot['spot_angle'];
 
             // Calculate distances
             $dist1 = $this->haversine($regLat, $regLon, $stationCoords['station_41112']['lat'], $stationCoords['station_41112']['lon']);
@@ -76,20 +75,12 @@ class Report
             // Basic weighted average — assumes MWD values are close (no circular averaging)
             $interpolatedMWD = $this->circularAverage([$mwd1, $mwd2], [$weight1, $weight2]);
 
-            // Calculate AOI
-            /*$adjustedAOI = RefractionModel::safeRefractionAOI($interpolatedMWD, $spotAngle, $data1['WVHT'] ?? null, $data1['APD'] ?? null);
-            $aoi_category = $waveData->AOI_category($adjustedAOI);
-            $longshore = $waveData->longshoreRisk($adjustedAOI);*/
-
             $matchingSpots[] = [
                 'spot_id' => $spot['id'],
                 'spot_name' => $spot['spot_name'],
                 'interpolated_mwd' => round($interpolatedMWD, 1),
-                //'adjusted_aoi' => round($adjustedAOI, 2),
                 'dist_41112' => round($dist1, 2),
                 'dist_41117' => round($dist2, 2),
-                //'aoi_category' => $aoi_category,
-                //'longshore' => $longshore,
             ];
         }
         if (empty($matchingSpots)) {
