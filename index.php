@@ -129,10 +129,11 @@ if (! empty($matchingSpots)) {
     </tbody>
   </table>
 
-  <h2>Interpolated Spot Report</h2>
-  <p>Using station data from <?= h($station1) ?> and <?= h($station2) ?> at <?= h($data1['ts']) ?> UTC</p>
-
+  <h2>Interpolated Surf Report</h2>
+  <h5>Using station data from <?= h($station1) ?> and <?= h($station2) ?> at <?= h($data1['ts']) ?> UTC</h5>
+<p>Signifcant Wave Height of WVHT at (dominate direction) with a median wave direction of (MWD)
   <h3>Ideal Spots Based on Dominate Period and Median Direction</h3>
+  <h5>Adjusted For Refraction</h5>
 <ul>
   <?php if (empty($matchingSpots)): ?>
     <li>No spots match your criteria.</li>
