@@ -146,6 +146,10 @@ if (! empty($matchingSpots)) {
       </li>
     <?php endforeach; ?>
   <?php endif; ?>
-</ul></body>
+</ul>
+
+<h5>Release Notes:</h5>
+ <p>Current spot list includes zones indicating significant wave concentration from St. Mary's Entrance to 13th Ave. S. in Jacksonville Beach. Mapping southward of the 13th Ave. S. will ensue in the near future. Though at first glance few indicators of wave concentration exist from South Jacksonville Beach southward until the begning of the Vilano shoals at the southern end of South Ponte Vedra.   </p>
+</body>
 
 </html>
