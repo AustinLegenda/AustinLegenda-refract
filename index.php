@@ -63,7 +63,7 @@ foreach ($station_columns as $col) {
 // ————— Assemble rows: ID ⇒ [ label + data ] —————
 $station_rows = [
     '41112'   => [ 'label' => 'St. Marys Entrance', 'data' => $data1 ],
-    'median'  => [ 'label' => 'St. Johns Entrance',   'data' => $absolute_mid ],
+    'median'  => [ 'label' => 'St. Johns Entrance (interpolated)',   'data' => $absolute_mid ],
     '41117'   => [ 'label' => 'St. Augustine',         'data' => $data2 ],
 ];
 
