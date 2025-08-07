@@ -94,7 +94,7 @@ class Report
             );
 
             // choose dominant period by comparing wave heights
-            if ($mid['SwH'] > $mid['WWH']) {
+          if ($mid['SwH'] > $mid['WWH']) {
                 $dominantPeriod = $mid['SwP'];
             } elseif ($mid['SwH'] < $mid['WWH']) {
                 $dominantPeriod = $mid['WWP'];
@@ -102,7 +102,8 @@ class Report
                 $dominantPeriod = ($mid['SwP'] + $mid['WWP']) / 2;
             }
 
-            $dominantPeriod = round($dominantPeriod, 1);
+            $dominantPeriod = round($dominantPeriod, 2);
+
             // spot's allowed ranges
             $pMin = (float) $spot['period_min'];
             $pMax = (float) $spot['period_max'];

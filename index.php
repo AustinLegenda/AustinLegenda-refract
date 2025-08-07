@@ -18,7 +18,7 @@ use Legenda\NormalSurf\API\NoaaRequest;
 $targetTs = Convert::UTC_time();
 
 $stmt1 = $pdo->prepare(
-    "SELECT ts, {$colsList1}
+  "SELECT ts, {$colsList1}
      FROM {$table1}
      WHERE ts <= ?
      ORDER BY ts DESC
@@ -28,7 +28,7 @@ $stmt1->execute([$targetTs]);
 $data1 = $stmt1->fetch(PDO::FETCH_ASSOC);
 
 $stmt2 = $pdo->prepare(
-    "SELECT ts, {$colsList2}
+  "SELECT ts, {$colsList2}
      FROM {$table2}
      WHERE ts <= ?
      ORDER BY ts DESC
@@ -38,105 +38,176 @@ $stmt2->execute([$targetTs]);
 $data2 = $stmt2->fetch(PDO::FETCH_ASSOC);
 
 if (!$data1 || !$data2) {
-    die('Missing data for one or both buoys.');
+  die('Missing data for one or both buoys.');
 }
 
 // simple HTML-escape helper
-function h($v): string {
-    return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
+function h($v): string
+{
+  return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
 }
 
 // ————— Compute absolute midpoint —————
 $station_columns = [
-    'ts','WVHT','SwH','SwP','WWH','WWP','SwD','WWD','APD','MWD','STEEPNESS'
+  'ts',
+  'WVHT',
+  'SwH',
+  'SwP',
+  'WWH',
+  'WWP',
+  'SwD',
+  'WWD',
+  'APD',
+  'MWD',
+  'STEEPNESS'
 ];
 
 $absolute_mid = [];
 foreach ($station_columns as $col) {
-    $v1 = $data1[$col] ?? null;
-    $v2 = $data2[$col] ?? null;
-    $absolute_mid[$col] = (is_numeric($v1) && is_numeric($v2))
-        ? ($v1 + $v2) / 2
-        : null;
+  $v1 = $data1[$col] ?? null;
+  $v2 = $data2[$col] ?? null;
+  $absolute_mid[$col] = (is_numeric($v1) && is_numeric($v2))
+    ? ($v1 + $v2) / 2
+    : null;
 }
 
 // ————— Assemble rows: ID ⇒ [ label + data ] —————
 $station_rows = [
-    '41112'   => [ 'label' => 'St. Marys Entrance', 'data' => $data1 ],
-    'median'  => [ 'label' => 'St. Johns Entrance (interpolated)',   'data' => $absolute_mid ],
-    '41117'   => [ 'label' => 'St. Augustine',         'data' => $data2 ],
+  '41112'   => ['label' => 'St. Marys Entrance', 'data' => $data1],
+  'median'  => ['label' => 'St. Johns Entrance (interpolated)',   'data' => $absolute_mid],
+  '41117'   => ['label' => 'St. Augustine',         'data' => $data2],
 ];
+
+
+function computeDominantPeriod(array $d): ?float
+{
+  if (! isset($d['SwH'], $d['WWH'], $d['SwP'], $d['WWP'])) {
+    return null;
+  }
+
+  // cast to floats
+  $swH = (float) $d['SwH'];
+  $wwH = (float) $d['WWH'];
+  $swP = (float) $d['SwP'];
+  $wwP = (float) $d['WWP'];
+
+  // collapse heights to one decimal
+  $swH1 = round($swH, 1);
+  $wwH1 = round($wwH, 1);
+
+  if ($swH1 === $wwH1) {
+    $dp = ($swP + $wwP) / 2;
+  } elseif ($swH1 > $wwH1) {
+    $dp = $swP;
+  } else {
+    $dp = $wwP;
+  }
+
+  return round($dp, 1);
+}
+
+// inject into each station row
+foreach ($station_rows as $key => $row) {
+  $station_rows[$key]['dominant_period'] =
+    computeDominantPeriod($row['data']);
+}
 
 // ————— Find matching spots —————
 $waveData      = new WaveData();
 $report        = new Report();
 $matchingSpots = $report->station_interpolation(
-    $pdo, $data1, $data2, $waveData
+  $pdo,
+  $data1,
+  $data2,
+  $waveData
 );
 ?>
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <title>Normal Surf</title>
   <style>
-    body { font-family: sans-serif; margin: 20px; }
-    table { border-collapse: collapse; width: 100%; margin-bottom: 30px; }
-    th, td { padding: 6px 10px; border: 1px solid #ccc; text-align: center; }
-    th { background: #eee; }
-    h1,h2 { margin-bottom: 10px; }
-    .station-report {
-  display: flex;
-  gap: 20px;
-  /* if you want them the same width: */
-  /* justify-content: space-between; */
-}
+    body {
+      font-family: sans-serif;
+      margin: 20px;
+    }
 
-.station-report__item {
-  flex: 1;
-  padding: 10px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  text-align: center;
-}
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-bottom: 30px;
+    }
+
+    th,
+    td {
+      padding: 6px 10px;
+      border: 1px solid #ccc;
+      text-align: center;
+    }
+
+    th {
+      background: #eee;
+    }
+
+    h1,
+    h2 {
+      margin-bottom: 10px;
+    }
+
+    .station-report {
+      display: flex;
+      gap: 20px;
+      /* if you want them the same width: */
+      /* justify-content: space-between; */
+    }
+
+    .station-report__item {
+      flex: 1;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      text-align: center;
+    }
   </style>
 </head>
+
 <body>
 
-<section aria-labelledby="surf-report-heading">
-  <h2 id="surf-report-heading">Surf Report</h2>
-  <div class="station-report">
-    <?php foreach ($station_rows as $key => $row): ?>
-      <div class="station-report__item">
-        <h4><?= h($row['label']) ?></h4>
-        <h3>
-          <?php if (is_numeric($row['data']['WVHT'])): ?>
-            <?= round(Convert::metersToFeet((float)$row['data']['WVHT']), 2) ?>&nbsp;ft
-          <?php else: ?>
-            &mdash; ft
-          <?php endif; ?>
+  <section aria-labelledby="surf-report-heading">
+    <h2 id="surf-report-heading">Surf Report</h2>
+    <div class="station-report">
+      <?php foreach ($station_rows as $key => $row): ?>
+        <div class="station-report__item">
+          <h4><?= h($row['label']) ?></h4>
+          <h3>
+            <?php if (is_numeric($row['data']['WVHT'])): ?>
+              <?= round(Convert::metersToFeet((float)$row['data']['WVHT']), 2) ?>&nbsp;ft
+            <?php else: ?>
+              &mdash; ft
+            <?php endif; ?>
 
-          @
+            @
 
-          <?php if (is_numeric($row['data']['SwP'])): ?>
-            <?= round((float)$row['data']['SwP'], 2) ?>&nbsp;s
-          <?php else: ?>
-            &mdash; s
-          <?php endif; ?>
+            <?php if (isset($row['dominant_period']) && is_numeric($row['dominant_period'])): ?>
+              <?= round((float)$row['dominant_period'], 1) ?>&nbsp;s
+            <?php else: ?>
+              &mdash; s
+            <?php endif; ?>
 
-          &amp;
 
-          <?php if (is_numeric($row['data']['MWD'])): ?>
-            <?= round((float)$row['data']['MWD'], 0) ?>&deg;
-          <?php else: ?>
-            &mdash; &deg;
-          <?php endif; ?>
-        </h3>
-      </div>
-    <?php endforeach; ?>
-  </div>
-</section>
- 
+            <?php if (is_numeric($row['data']['MWD'])): ?>
+              <?= round((float)$row['data']['MWD'], 0) ?>&deg;
+            <?php else: ?>
+              &mdash; &deg;
+            <?php endif; ?>
+          </h3>
+        </div>
+      <?php endforeach; ?>
+    </div>
+  </section>
+
   <section aria-labelledby="ideal-spots-heading">
     <h2 id="ideal-spots-heading">Ideal Spots Based on Dominant Period &amp; Median Direction</h2>
     <ul>
@@ -147,7 +218,7 @@ $matchingSpots = $report->station_interpolation(
           <li>
             <?= h($s['spot_name']) ?>
             (Period: <?= h($s['dominant_period']) ?>&nbsp;s,
-             Dir: <?= h($s['interpolated_mwd']) ?>&deg;)
+            Dir: <?= h($s['interpolated_mwd']) ?>&deg;)
           </li>
         <?php endforeach; ?>
       <?php endif; ?>
@@ -157,7 +228,7 @@ $matchingSpots = $report->station_interpolation(
   <section aria-labelledby="latest-observations-heading">
     <h2 id="latest-observations-heading">Latest Observations</h2>
     <table>
-     
+
       <thead>
         <tr>
           <th>Station</th>
@@ -173,8 +244,8 @@ $matchingSpots = $report->station_interpolation(
             <?php foreach ($station_columns as $col): ?>
               <td>
                 <?php
-                  $val = $info['data'][$col] ?? null;
-                  echo is_numeric($val) ? round($val, 2) : h($val ?? '—');
+                $val = $info['data'][$col] ?? null;
+                echo is_numeric($val) ? round($val, 2) : h($val ?? '—');
                 ?>
               </td>
             <?php endforeach; ?>
@@ -184,13 +255,14 @@ $matchingSpots = $report->station_interpolation(
     </table>
   </section>
 
-<h5>Release Notes:</h5>
-<p>
-  The spots list is derived from zones indicating significant wave concentration; from St. Mary’s Entrance to 13th Ave. S., Jacksonville Beach. Each zone is adjusted for refraction across various swell directions and periods over prominent bathymetry. Continued mapping southward will follow in the near future, although initial tests show few high-energy zones between South Jacksonville Beach and the Vilano shoals at the southern end of "South Ponte Vedra".
-</p>
-<p>
-  Future versions will integrate tide and wind data into the spot-selection model, along with forecasting and other features that support local intuition.
-</p>
+  <h5>Release Notes:</h5>
+  <p>
+    The spots list is derived from zones indicating significant wave concentration; from St. Mary’s Entrance to 13th Ave. S., Jacksonville Beach. Each zone is adjusted for refraction across various swell directions and periods over prominent bathymetry. Continued mapping southward will follow in the near future, although initial tests show few high-energy zones between South Jacksonville Beach and the Vilano shoals at the southern end of "South Ponte Vedra".
+  </p>
+  <p>
+    Future versions will integrate tide and wind data into the spot-selection model, along with forecasting and other features that support local intuition.
+  </p>
 
 </body>
+
 </html>
