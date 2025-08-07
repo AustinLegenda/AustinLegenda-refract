@@ -94,7 +94,7 @@ class Report
             );
 
             // choose dominant period by comparing wave heights
-          if ($mid['SwH'] > $mid['WWH']) {
+            if ($mid['SwH'] > $mid['WWH']) {
                 $dominantPeriod = $mid['SwP'];
             } elseif ($mid['SwH'] < $mid['WWH']) {
                 $dominantPeriod = $mid['WWP'];
@@ -171,5 +171,32 @@ class Report
         }
 
         return $mid;
+    }
+
+    function computeDominantPeriod(array $d): ?float
+    {
+        if (! isset($d['SwH'], $d['WWH'], $d['SwP'], $d['WWP'])) {
+            return null;
+        }
+
+        // cast to floats
+        $swH = (float) $d['SwH'];
+        $wwH = (float) $d['WWH'];
+        $swP = (float) $d['SwP'];
+        $wwP = (float) $d['WWP'];
+
+        // collapse heights to one decimal
+        $swH1 = round($swH, 1);
+        $wwH1 = round($wwH, 1);
+
+        if ($swH1 === $wwH1) {
+            $dp = ($swP + $wwP) / 2;
+        } elseif ($swH1 > $wwH1) {
+            $dp = $swP;
+        } else {
+            $dp = $wwP;
+        }
+
+        return round($dp, 1);
     }
 }

@@ -79,37 +79,13 @@ $station_rows = [
 ];
 
 
-function computeDominantPeriod(array $d): ?float
-{
-  if (! isset($d['SwH'], $d['WWH'], $d['SwP'], $d['WWP'])) {
-    return null;
-  }
 
-  // cast to floats
-  $swH = (float) $d['SwH'];
-  $wwH = (float) $d['WWH'];
-  $swP = (float) $d['SwP'];
-  $wwP = (float) $d['WWP'];
-
-  // collapse heights to one decimal
-  $swH1 = round($swH, 1);
-  $wwH1 = round($wwH, 1);
-
-  if ($swH1 === $wwH1) {
-    $dp = ($swP + $wwP) / 2;
-  } elseif ($swH1 > $wwH1) {
-    $dp = $swP;
-  } else {
-    $dp = $wwP;
-  }
-
-  return round($dp, 1);
-}
 
 // inject into each station row
+$report = new Report();
 foreach ($station_rows as $key => $row) {
   $station_rows[$key]['dominant_period'] =
-    computeDominantPeriod($row['data']);
+    $report->computeDominantPeriod($row['data']);
 }
 
 // ————— Find matching spots —————
@@ -170,20 +146,27 @@ $matchingSpots = $report->station_interpolation(
       border-radius: 4px;
       text-align: center;
     }
+    footer{
+      width:100%;
+      height:400px;
+      position:relative;
+      bottom:0;
+    }
   </style>
 </head>
 
 <body>
-
+<header><h1>Normal Surf</h1></header>
+<hr>
   <section aria-labelledby="surf-report-heading">
-    <h2 id="surf-report-heading">Surf Report</h2>
+    <h2 id="surf-report-heading">Surf Report For Noth East Florida </h2>
     <div class="station-report">
       <?php foreach ($station_rows as $key => $row): ?>
         <div class="station-report__item">
           <h4><?= h($row['label']) ?></h4>
           <h3>
             <?php if (is_numeric($row['data']['WVHT'])): ?>
-              <?= round(Convert::metersToFeet((float)$row['data']['WVHT']), 2) ?>&nbsp;ft
+              <?= round(Convert::metersToFeet((float)$row['data']['WVHT']), 2) ?>'
             <?php else: ?>
               &mdash; ft
             <?php endif; ?>
@@ -191,12 +174,12 @@ $matchingSpots = $report->station_interpolation(
             @
 
             <?php if (isset($row['dominant_period']) && is_numeric($row['dominant_period'])): ?>
-              <?= round((float)$row['dominant_period'], 1) ?>&nbsp;s
+              <?= round((float)$row['dominant_period'], 1) ?>s
             <?php else: ?>
               &mdash; s
             <?php endif; ?>
 
-
+            &
             <?php if (is_numeric($row['data']['MWD'])): ?>
               <?= round((float)$row['data']['MWD'], 0) ?>&deg;
             <?php else: ?>
@@ -206,13 +189,15 @@ $matchingSpots = $report->station_interpolation(
         </div>
       <?php endforeach; ?>
     </div>
+    <hr>
   </section>
 
   <section aria-labelledby="ideal-spots-heading">
-    <h2 id="ideal-spots-heading">Ideal Spots Based on Dominant Period &amp; Median Direction</h2>
+    <h2 id="ideal-spots-heading"> List Of Optimal Spots: </h2>
     <ul>
       <?php if (empty($matchingSpots)): ?>
-        <li>No spots match your criteria.</li>
+        <li>Observed conditions are less than ideal for your region. Check back later.</li>
+        
       <?php else: ?>
         <?php foreach ($matchingSpots as $s): ?>
           <li>
@@ -262,7 +247,10 @@ $matchingSpots = $report->station_interpolation(
   <p>
     Future versions will integrate tide and wind data into the spot-selection model, along with forecasting and other features that support local intuition.
   </p>
-
+<footer>
+  <hr>
+<strong>Patent Pending</strong>
+<p>© 2023 – 2025 Legenda LLC</p>   </footer>
 </body>
 
 </html>
