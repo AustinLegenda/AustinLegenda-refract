@@ -12,8 +12,8 @@ class Report
         $dLat = deg2rad($lat2 - $lat1);
         $dLon = deg2rad($lon2 - $lon1);
         $a = sin($dLat / 2) * sin($dLat / 2) +
-             cos(deg2rad($lat1)) * cos(deg2rad($lat2)) *
-             sin($dLon / 2) * sin($dLon / 2);
+            cos(deg2rad($lat1)) * cos(deg2rad($lat2)) *
+            sin($dLon / 2) * sin($dLon / 2);
         $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
         return $earth_radius * $c;
     }
@@ -94,11 +94,15 @@ class Report
             );
 
             // choose dominant period by comparing wave heights
-            $dominantPeriod = ($mid['SwH'] >= $mid['WWH'])
-                ? $mid['SwP']
-                : $mid['WWP'];
-            $dominantPeriod = round($dominantPeriod, 2);
+            if ($mid['SwH'] > $mid['WWH']) {
+                $dominantPeriod = $mid['SwP'];
+            } elseif ($mid['SwH'] < $mid['WWH']) {
+                $dominantPeriod = $mid['WWP'];
+            } else {
+                $dominantPeriod = ($mid['SwP'] + $mid['WWP']) / 2;
+            }
 
+            $dominantPeriod = round($dominantPeriod, 1);
             // spot's allowed ranges
             $pMin = (float) $spot['period_min'];
             $pMax = (float) $spot['period_max'];
