@@ -74,7 +74,7 @@ foreach ($station_columns as $col) {
 // ————— Assemble rows: ID ⇒ [ label + data ] —————
 $station_rows = [
   '41112'   => ['label' => 'St. Marys Entrance', 'data' => $data1],
-  'median'  => ['label' => 'St. Johns Entrance (interpolated)',   'data' => $absolute_mid],
+  'median'  => ['label' => 'St. Johns Approach (interpolated)',   'data' => $absolute_mid],
   '41117'   => ['label' => 'St. Augustine',         'data' => $data2],
 ];
 
@@ -159,7 +159,7 @@ $matchingSpots = $report->station_interpolation(
 <header><h1>Normal Surf</h1></header>
 <hr>
   <section aria-labelledby="surf-report-heading">
-    <h2 id="surf-report-heading">Surf Report For Noth East Florida </h2>
+    <h2 id="surf-report-heading">Surf Report For North East Florida </h2>
     <div class="station-report">
       <?php foreach ($station_rows as $key => $row): ?>
         <div class="station-report__item">
