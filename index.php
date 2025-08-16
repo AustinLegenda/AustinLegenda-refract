@@ -87,7 +87,8 @@ foreach ($station_rows as $key => $row) {
   $station_rows[$key]['dominant_period'] =
     $report->computeDominantPeriod($row['data']);
 }
-//TIDE TESTS
+//Tides
+
 
 
 
@@ -101,6 +102,29 @@ $matchingSpots = $report->station_interpolation(
   $data2,
   $waveData
 );
+
+// Split spots into primary (tide-prefs matched) and other (no prefs or tide not matched)
+$primarySpots = [];
+$otherOptions = [];
+
+foreach ($matchingSpots as $s) {
+  $hasPrefs = !empty($s['has_tide_prefs']);
+  $tideOk   = !empty($s['tide_ok']);
+
+  if ($hasPrefs && $tideOk) {
+    $primarySpots[] = $s;
+  } else {
+    // "Other Options" includes: no tide prefs OR tide prefs that didn't match
+    $otherOptions[] = $s;
+  }
+}
+
+// Optional: bubble strong matches to the top of primary
+usort($primarySpots, function ($a, $b) {
+  return (int)!($b['tide_ok']) <=> (int)!($a['tide_ok']);
+});
+
+
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -200,27 +224,61 @@ $matchingSpots = $report->station_interpolation(
   </section>
 
   <section aria-labelledby="ideal-spots-heading">
-    <h2 id="ideal-spots-heading"> List Of Optimal Spots: </h2>
+    <h2 id="ideal-spots-heading">List Of Optimal Spots:</h2>
     <ul>
-      <?php if (empty($matchingSpots)): ?>
-        <li>Observed conditions are less than ideal for your region. Check back later.</li>
-
+      <?php if (empty($primarySpots)): ?>
+        <li>No spots match tide preferences right now.</li>
       <?php else: ?>
-        <?php foreach ($matchingSpots as $s): ?>
-<li>
-  <?= h($s['spot_name']) ?>
-  (Period: <?= h($s['dominant_period']) ?>&nbsp;s,
-   Dir: <?= h($s['interpolated_mwd']) ?>&deg;
-   <?php if (!empty($s['tide_reason']) && !empty($s['tide_reason_time'])): ?>
-     , Tide: <?= h($s['tide_reason']) ?> @ <?= h($s['tide_reason_time']) ?>
-   <?php else: ?>
-     , Tide: no matching tide
-   <?php endif; ?>)
-</li>
+        <?php foreach ($primarySpots as $s): ?>
+          <li>
+            <?= h($s['spot_name']) ?>
+            (Period: <?= h($s['dominant_period']) ?>&nbsp;s,
+            Dir: <?= h($s['interpolated_mwd']) ?>&deg;
+            <?php if (!empty($s['has_tide_prefs'])): ?>
+              , Tide: next preferred <?= h($s['next_pref'] ?? '—') ?>
+              <?php if (!empty($s['next_pref_time'])): ?>
+                @ <?= h($s['next_pref_time']) ?>
+              <?php endif; ?>
+            <?php else: ?>
+              , Tide: next marker <?= h($s['next_marker'] ?? '—') ?>
+              <?php if (!empty($s['next_marker_time'])): ?>
+                @ <?= h($s['next_marker_time']) ?>
+              <?php endif; ?>
+              <?php endif; ?>)
+          </li>
         <?php endforeach; ?>
       <?php endif; ?>
     </ul>
   </section>
+
+  <section aria-labelledby="other-options-heading">
+    <h2 id="other-options-heading">Other Options</h2>
+    <ul>
+      <?php if (empty($otherOptions)): ?>
+        <li>None at the moment.</li>
+      <?php else: ?>
+        <?php foreach ($otherOptions as $s): ?>
+          
+          <li>
+            <?= h($s['spot_name']) ?>
+            (Period: <?= h($s['dominant_period']) ?>&nbsp;s,
+            Dir: <?= h($s['interpolated_mwd']) ?>&deg;
+            <?php if (!empty($s['tide_ok']) && !empty($s['tide_reason']) && !empty($s['tide_reason_time'])): ?>
+              , Tide: matched <?= h($s['tide_reason']) ?> @ <?= h($s['tide_reason_time']) ?>
+            <?php else: // fallback, shouldn't normally happen in primary 
+            ?>
+              <?php if (!empty($s['has_tide_prefs'])): ?>
+                , Tide: next preferred <?= h($s['next_pref'] ?? '—') ?><?php if (!empty($s['next_pref_time'])): ?> @ <?= h($s['next_pref_time']) ?><?php endif; ?>
+              <?php else: ?>
+                , Tide: next marker <?= h($s['next_marker'] ?? '—') ?><?php if (!empty($s['next_marker_time'])): ?> @ <?= h($s['next_marker_time']) ?><?php endif; ?>
+              <?php endif; ?>
+              <?php endif; ?>)
+          </li>
+        <?php endforeach; ?>
+      <?php endif; ?>
+    </ul>
+  </section>
+
 
   <section aria-labelledby="latest-observations-heading">
     <h2 id="latest-observations-heading">Latest Observations</h2>
@@ -267,6 +325,3 @@ $matchingSpots = $report->station_interpolation(
 </body>
 
 </html>
-
-
- 
