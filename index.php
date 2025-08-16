@@ -88,6 +88,36 @@ foreach ($station_rows as $key => $row) {
     $report->computeDominantPeriod($row['data']);
 }
 
+$table  = 'tides_8720030'; // make sure this matches the station you're comparing
+$nowUtc = Convert::UTC_time(); // already UTC "Y-m-d H:i:00"
+
+$stmt = $pdo->prepare("
+  SELECT t_local, t_utc, height_ft
+  FROM `{$table}`
+  WHERE hl_type = 'H' AND t_utc >= :now
+  ORDER BY t_utc ASC
+  LIMIT 1
+");
+$stmt->execute([':now' => $nowUtc]);
+$row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+if ($row) {
+    // 1) Render LOCAL time without any re-conversion:
+    $dtLocal = DateTime::createFromFormat(
+        'Y-m-d H:i:s',
+        $row['t_local'],
+        new DateTimeZone('America/New_York')
+    );
+    echo 'Next High: ' .
+         $dtLocal->format('l, F j, g:i A') .
+         ' (' . round((float)$row['height_ft'], 2) . ' ft MLLW)';
+
+    // Optional sanity: verify offset is exactly -4 in summer
+    // echo ' [offset hrs: ' . ((strtotime($row['t_local']) - strtotime($row['t_utc']))/3600) . ']';
+} else {
+    echo 'No upcoming High tide found.';
+}
+
 // ————— Find matching spots —————
 $waveData      = new WaveData();
 $report        = new Report();

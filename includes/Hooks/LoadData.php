@@ -4,6 +4,7 @@ namespace Legenda\NormalSurf\Hooks;
 
 use Legenda\NormalSurf\Hooks\SpectralDataParser;
 use Legenda\NormalSurf\Repositories\NoaaRepository;
+use Legenda\NormalSurf\Repositories\NoaaTideRepository;
 use PDO;
 
 class LoadData
@@ -56,4 +57,33 @@ class LoadData
 
         return [$pdo, $station, $dataCols, $colsList, $table];
     }
+// TIDES
+public static function import_tides_from_xml(PDO $pdo, string $xmlPath, ?string $tableName = null): string
+{
+    // lets the repo derive table from the filename (e.g., 8720030_annual.xml → tides_8720030)
+    // or you can pass 'tides_8720030' explicitly via $tableName
+    return NoaaTideRepository::importAnnualHLXml($pdo, $xmlPath, $tableName);
+}
+
+/**
+ * Convenience (by station id): prev + next two HLs at $nowUtc.
+ * Uses table 'tides_{stationId}'.
+ */
+public static function tides_window(PDO $pdo, string $stationId, string $nowUtc): array
+{
+    $prev = NoaaTideRepository::getPrevHL($pdo, $stationId, $nowUtc);
+    $next = NoaaTideRepository::getNextHL($pdo, $stationId, $nowUtc, 2);
+    return [$prev, $next];
+}
+
+/**
+ * Convenience (by table name): same as above, but when you already know the table.
+ * Example: $tbl = 'tides_8720030';
+ */
+public static function tides_window_by_table(PDO $pdo, string $table, string $nowUtc): array
+{
+    $prev = NoaaTideRepository::getPrevHLByTable($pdo, $table, $nowUtc);
+    $next = NoaaTideRepository::getNextHLByTable($pdo, $table, $nowUtc, 2);
+    return [$prev, $next];
+}
 }
