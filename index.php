@@ -7,7 +7,7 @@ require_once __DIR__ . '/vendor/autoload.php';
 use Legenda\NormalSurf\Hooks\Convert;
 use Legenda\NormalSurf\Hooks\LoadData;
 use Legenda\NormalSurf\Hooks\WaveData;
-use Legenda\NormalSurf\Models\RefractionModel;
+use Legenda\NormalSurf\Models\MidTideModel;
 use Legenda\NormalSurf\Hooks\Report;
 use Legenda\NormalSurf\API\NoaaRequest;
 
@@ -87,36 +87,16 @@ foreach ($station_rows as $key => $row) {
   $station_rows[$key]['dominant_period'] =
     $report->computeDominantPeriod($row['data']);
 }
+//TIDE TESTS
+    $table = 'tides_8720030'; // whichever station you imported
+$mid   = MidTideModel::nextMid($pdo, $table);
 
-$table  = 'tides_8720030'; // make sure this matches the station you're comparing
-$nowUtc = Convert::UTC_time(); // already UTC "Y-m-d H:i:00"
-
-$stmt = $pdo->prepare("
-  SELECT t_local, t_utc, height_ft
-  FROM `{$table}`
-  WHERE hl_type = 'H' AND t_utc >= :now
-  ORDER BY t_utc ASC
-  LIMIT 1
-");
-$stmt->execute([':now' => $nowUtc]);
-$row = $stmt->fetch(PDO::FETCH_ASSOC);
-
-if ($row) {
-    // 1) Render LOCAL time without any re-conversion:
-    $dtLocal = DateTime::createFromFormat(
-        'Y-m-d H:i:s',
-        $row['t_local'],
-        new DateTimeZone('America/New_York')
-    );
-    echo 'Next High: ' .
-         $dtLocal->format('l, F j, g:i A') .
-         ' (' . round((float)$row['height_ft'], 2) . ' ft MLLW)';
-
-    // Optional sanity: verify offset is exactly -4 in summer
-    // echo ' [offset hrs: ' . ((strtotime($row['t_local']) - strtotime($row['t_utc']))/3600) . ']';
+if ($mid) {
+    echo "{$mid['label']} Mid Tide: {$mid['pretty']} ({$mid['height_ft']} ft MLLW)";
 } else {
-    echo 'No upcoming High tide found.';
+    echo "No mid tide could be determined.";
 }
+
 
 // ————— Find matching spots —————
 $waveData      = new WaveData();
