@@ -88,14 +88,31 @@ foreach ($station_rows as $key => $row) {
     $report->computeDominantPeriod($row['data']);
 }
 //TIDE TESTS
-    $table = 'tides_8720030'; // whichever station you imported
-$mid   = MidTideModel::nextMid($pdo, $table);
 
-if ($mid) {
-    echo "{$mid['label']} Mid Tide: {$mid['pretty']} ({$mid['height_ft']} ft MLLW)";
-} else {
-    echo "No mid tide could be determined.";
-}
+// pick the station that serves this region/spot
+$stationId = '8720030'; // e.g. Mayport; replace with your mapping
+
+$nowUtc = Convert::UTC_time(); // you already have this helper
+$tide   = (new Report())->tideWindowForStation($pdo, $stationId, $nowUtc, 60);
+
+// attach to your row
+$station_rows[$key]['tide'] = $tide;
+
+// spot tide prefs, e.g. columns H / M+ / M- / L as booleans
+$pref = [
+  'H'  => (bool)$spot['H'],
+  'M+' => (bool)$spot['M_plus'],
+  'M-' => (bool)$spot['M_minus'],
+  'L'  => (bool)$spot['L'],
+];
+
+// gate by “within next hour”
+$station_rows[$key]['tide_match'] =
+    ($pref['H']  && $tide['within_window']['H'])  ||
+    ($pref['M+'] && $tide['within_window']['M+']) ||
+    ($pref['M-'] && $tide['within_window']['M-']) ||
+    ($pref['L']  && $tide['within_window']['L']);
+
 
 
 // ————— Find matching spots —————

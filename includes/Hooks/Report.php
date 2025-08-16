@@ -2,7 +2,10 @@
 
 namespace Legenda\NormalSurf\Hooks;
 
-use Legenda\NormalSurf\Models\RefractionModel;
+use DateTime;
+use DateTimeZone;
+use PDO;
+use Legenda\NormalSurf\Repositories\NoaaTideRepository as Tides;
 
 class Report
 {
@@ -198,5 +201,88 @@ class Report
         }
 
         return round($dp, 1);
+    }
+
+    public function tideWindowForStation(PDO $pdo, string $stationId, string $nowUtc, int $windowMin = 60): array
+    {
+        // Pull prev and the next two rows (so we can find next + an opposite endpoint if needed)
+        $prev = Tides::getPrevHL($pdo, $stationId, $nowUtc);      // or null at very beginning of dataset
+        $nexts = Tides::getNextHL($pdo, $stationId, $nowUtc, 2);  // may be [0] only near end of dataset
+
+        // Edge guards
+        if (!$prev && empty($nexts)) {
+            return ['error' => 'no_tide_rows'];
+        }
+        $next = $nexts[0] ?? $prev; // if no "next", mirror prev so we don't explode
+
+        // Choose an opposite-type pair around "now" for mid-tide
+        $a = $prev ?: $next;              // earlier endpoint
+        $b = $nexts[0] ?? $prev;          // later endpoint
+        if ($a && $b && $a['hl_type'] === $b['hl_type']) {
+            // If both endpoints are H or both L, try to extend the window using the second "next" row
+            if (isset($nexts[1]) && $nexts[1]['hl_type'] !== $a['hl_type']) {
+                $b = $nexts[1];
+            }
+        }
+
+        // Build DateTimes
+        $tzLocal = new DateTimeZone('America/New_York');
+        $now     = new DateTime($nowUtc, new DateTimeZone('UTC'));
+
+        $taUtc = new DateTime($a['t_utc'] ?? $nowUtc, new DateTimeZone('UTC'));
+        $tbUtc = new DateTime($b['t_utc'] ?? $nowUtc, new DateTimeZone('UTC'));
+
+        // Mid time in UTC, then also local
+        $midUnix = (int) floor(($taUtc->getTimestamp() + $tbUtc->getTimestamp()) / 2);
+        $tMidUtc = (new DateTime("@{$midUnix}"))->setTimezone(new DateTimeZone('UTC'));
+        $tMidLocal = (clone $tMidUtc)->setTimezone($tzLocal);
+
+        // Mid height = simple average of endpoints (feet & meters)
+        $hMidFt = round(((float)$a['height_ft'] + (float)$b['height_ft']) / 2.0, 3);
+        $hMidM  = round(((float)$a['height_m']  + (float)$b['height_m'])  / 2.0, 3);
+        $between = (($a['hl_type'] ?? 'I') === 'L' && ($b['hl_type'] ?? 'I') === 'H') ? 'L→H'
+                 : (($a['hl_type'] ?? 'I') === 'H' && ($b['hl_type'] ?? 'I') === 'L' ? 'H→L' : 'L→H');
+
+        // Window tests
+        $minsDiff = static function (DateTime $x, DateTime $y): int {
+            return (int) round(abs($x->getTimestamp() - $y->getTimestamp()) / 60);
+        };
+        $nextUtc = new DateTime($next['t_utc'], new DateTimeZone('UTC'));
+
+        $within = [
+            'H'  => ($next['hl_type'] === 'H' && $minsDiff($now, $nextUtc) <= $windowMin),
+            'L'  => ($next['hl_type'] === 'L' && $minsDiff($now, $nextUtc) <= $windowMin),
+            'M+' => ($between === 'L→H' && $minsDiff($now, $tMidUtc) <= $windowMin),
+            'M-' => ($between === 'H→L' && $minsDiff($now, $tMidUtc) <= $windowMin),
+        ];
+
+        // Return in your convenient shape
+        $toLocal = fn(string $utc) => (new DateTime($utc, new DateTimeZone('UTC')))
+                                        ->setTimezone($tzLocal)->format('Y-m-d H:i:00');
+
+        return [
+            'prev' => $prev ? [
+                'hl_type'   => $prev['hl_type'],
+                't_utc'     => $prev['t_utc'],
+                't_local'   => $toLocal($prev['t_utc']),
+                'height_ft' => (float)$prev['height_ft'],
+                'height_m'  => (float)$prev['height_m'],
+            ] : null,
+            'next' => $next ? [
+                'hl_type'   => $next['hl_type'],
+                't_utc'     => $next['t_utc'],
+                't_local'   => $toLocal($next['t_utc']),
+                'height_ft' => (float)$next['height_ft'],
+                'height_m'  => (float)$next['height_m'],
+            ] : null,
+            'mid'  => [
+                'between'   => $between, // 'L→H' or 'H→L'
+                't_utc'     => $tMidUtc->format('Y-m-d H:i:00'),
+                't_local'   => $tMidLocal->format('Y-m-d H:i:00'),
+                'height_ft' => $hMidFt,
+                'height_m'  => $hMidM,
+            ],
+            'within_window' => $within,
+        ];
     }
 }
