@@ -270,7 +270,7 @@ usort($primarySpots, function ($a, $b) {
               <?php if (!empty($s['has_tide_prefs'])): ?>
                 , Tide: next preferred <?= h($s['next_pref'] ?? '—') ?><?php if (!empty($s['next_pref_time'])): ?> @ <?= h($s['next_pref_time']) ?><?php endif; ?>
               <?php else: ?>
-                , Tide: next marker <?= h($s['next_marker'] ?? '—') ?><?php if (!empty($s['next_marker_time'])): ?> @ <?= h($s['next_marker_time']) ?><?php endif; ?>
+                , Tide: next water level <?= h($s['next_marker'] ?? '—') ?><?php if (!empty($s['next_marker_time'])): ?> @ <?= h($s['next_marker_time']) ?><?php endif; ?>
               <?php endif; ?>
               <?php endif; ?>)
           </li>
