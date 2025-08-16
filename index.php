@@ -89,29 +89,6 @@ foreach ($station_rows as $key => $row) {
 }
 //TIDE TESTS
 
-// pick the station that serves this region/spot
-$stationId = '8720030'; // e.g. Mayport; replace with your mapping
-
-$nowUtc = Convert::UTC_time(); // you already have this helper
-$tide   = (new Report())->tideWindowForStation($pdo, $stationId, $nowUtc, 60);
-
-// attach to your row
-$station_rows[$key]['tide'] = $tide;
-
-// spot tide prefs, e.g. columns H / M+ / M- / L as booleans
-$pref = [
-  'H'  => (bool)$spot['H'],
-  'M+' => (bool)$spot['M_plus'],
-  'M-' => (bool)$spot['M_minus'],
-  'L'  => (bool)$spot['L'],
-];
-
-// gate by “within next hour”
-$station_rows[$key]['tide_match'] =
-    ($pref['H']  && $tide['within_window']['H'])  ||
-    ($pref['M+'] && $tide['within_window']['M+']) ||
-    ($pref['M-'] && $tide['within_window']['M-']) ||
-    ($pref['L']  && $tide['within_window']['L']);
 
 
 
@@ -173,18 +150,21 @@ $matchingSpots = $report->station_interpolation(
       border-radius: 4px;
       text-align: center;
     }
-    footer{
-      width:100%;
-      height:400px;
-      position:relative;
-      bottom:0;
+
+    footer {
+      width: 100%;
+      height: 400px;
+      position: relative;
+      bottom: 0;
     }
   </style>
 </head>
 
 <body>
-<header><h1>Normal Surf</h1></header>
-<hr>
+  <header>
+    <h1>Normal Surf</h1>
+  </header>
+  <hr>
   <section aria-labelledby="surf-report-heading">
     <h2 id="surf-report-heading">Surf Report For North East Florida </h2>
     <div class="station-report">
@@ -224,14 +204,19 @@ $matchingSpots = $report->station_interpolation(
     <ul>
       <?php if (empty($matchingSpots)): ?>
         <li>Observed conditions are less than ideal for your region. Check back later.</li>
-        
+
       <?php else: ?>
         <?php foreach ($matchingSpots as $s): ?>
-          <li>
-            <?= h($s['spot_name']) ?>
-            (Period: <?= h($s['dominant_period']) ?>&nbsp;s,
-            Dir: <?= h($s['interpolated_mwd']) ?>&deg;)
-          </li>
+<li>
+  <?= h($s['spot_name']) ?>
+  (Period: <?= h($s['dominant_period']) ?>&nbsp;s,
+   Dir: <?= h($s['interpolated_mwd']) ?>&deg;
+   <?php if (!empty($s['tide_reason']) && !empty($s['tide_reason_time'])): ?>
+     , Tide: <?= h($s['tide_reason']) ?> @ <?= h($s['tide_reason_time']) ?>
+   <?php else: ?>
+     , Tide: no matching tide
+   <?php endif; ?>)
+</li>
         <?php endforeach; ?>
       <?php endif; ?>
     </ul>
@@ -274,10 +259,14 @@ $matchingSpots = $report->station_interpolation(
   <p>
     Future versions will integrate tide and wind data into the spot-selection model, along with forecasting and other features that support local intuition.
   </p>
-<footer>
-  <hr>
-<strong>Patent Pending</strong>
-<p>© 2023 – 2025 Legenda LLC</p>   </footer>
+  <footer>
+    <hr>
+    <strong>Patent Pending</strong>
+    <p>© 2023 – 2025 Legenda LLC</p>
+  </footer>
 </body>
 
 </html>
+
+
+ 
