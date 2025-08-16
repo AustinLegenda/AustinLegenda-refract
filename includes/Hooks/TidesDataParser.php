@@ -12,7 +12,7 @@ $pdo = new PDO(
     [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
 );
 
-$xmlPath = dirname(__DIR__, 2) . '/assets/xml_data/8720030_annual.xml';
+$xmlPath = dirname(__DIR__, 2) . '/assets/xml_data/8720587_annual.xml';
 $table = LoadData::import_tides_from_xml($pdo, $xmlPath);
 
 echo "Imported tides into table: {$table}\n";
