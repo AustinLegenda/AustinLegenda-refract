@@ -7,9 +7,7 @@ require_once __DIR__ . '/vendor/autoload.php';
 use Legenda\NormalSurf\Hooks\Convert;
 use Legenda\NormalSurf\Hooks\LoadData;
 use Legenda\NormalSurf\Hooks\WaveData;
-use Legenda\NormalSurf\Models\MidTideModel;
 use Legenda\NormalSurf\Hooks\Report;
-use Legenda\NormalSurf\API\NoaaRequest;
 
 // ————— Load the two buoys —————
 [$pdo, $station1, $cols1, $colsList1, $table1] = LoadData::conn_report('41112');
@@ -17,23 +15,11 @@ use Legenda\NormalSurf\API\NoaaRequest;
 
 $targetTs = Convert::UTC_time();
 
-$stmt1 = $pdo->prepare(
-  "SELECT ts, {$colsList1}
-     FROM {$table1}
-     WHERE ts <= ?
-     ORDER BY ts DESC
-     LIMIT 1"
-);
+$stmt1 = $pdo->prepare("SELECT ts, {$colsList1} FROM {$table1} WHERE ts <= ? ORDER BY ts DESC LIMIT 1");
 $stmt1->execute([$targetTs]);
 $data1 = $stmt1->fetch(PDO::FETCH_ASSOC);
 
-$stmt2 = $pdo->prepare(
-  "SELECT ts, {$colsList2}
-     FROM {$table2}
-     WHERE ts <= ?
-     ORDER BY ts DESC
-     LIMIT 1"
-);
+$stmt2 = $pdo->prepare("SELECT ts, {$colsList2} FROM {$table2} WHERE ts <= ? ORDER BY ts DESC LIMIT 1");
 $stmt2->execute([$targetTs]);
 $data2 = $stmt2->fetch(PDO::FETCH_ASSOC);
 
@@ -41,181 +27,114 @@ if (!$data1 || !$data2) {
   die('Missing data for one or both buoys.');
 }
 
-// simple HTML-escape helper
-function h($v): string
-{
-  return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
-}
+function h($v): string { return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); }
 
 // ————— Compute absolute midpoint —————
-$station_columns = [
-  'ts',
-  'WVHT',
-  'SwH',
-  'SwP',
-  'WWH',
-  'WWP',
-  'SwD',
-  'WWD',
-  'APD',
-  'MWD',
-  'STEEPNESS'
-];
+$station_columns = ['ts','WVHT','SwH','SwP','WWH','WWP','SwD','WWD','APD','MWD','STEEPNESS'];
 
 $absolute_mid = [];
 foreach ($station_columns as $col) {
   $v1 = $data1[$col] ?? null;
   $v2 = $data2[$col] ?? null;
-  $absolute_mid[$col] = (is_numeric($v1) && is_numeric($v2))
-    ? ($v1 + $v2) / 2
-    : null;
+  $absolute_mid[$col] = (is_numeric($v1) && is_numeric($v2)) ? ($v1 + $v2) / 2 : null;
 }
 
-// ————— Assemble rows: ID ⇒ [ label + data ] —————
 $station_rows = [
-  '41112'   => ['label' => 'St. Marys Entrance', 'data' => $data1],
-  'median'  => ['label' => 'St. Johns Approach (interpolated)',   'data' => $absolute_mid],
-  '41117'   => ['label' => 'St. Augustine',         'data' => $data2],
+  '41112'   => ['label' => 'St. Marys Entrance',                'data' => $data1],
+  'median'  => ['label' => 'St. Johns Approach (interpolated)', 'data' => $absolute_mid],
+  '41117'   => ['label' => 'St. Augustine',                      'data' => $data2],
 ];
 
-
-
-
-// inject into each station row
 $report = new Report();
 foreach ($station_rows as $key => $row) {
-  $station_rows[$key]['dominant_period'] =
-    $report->computeDominantPeriod($row['data']);
+  $station_rows[$key]['dominant_period'] = $report->computeDominantPeriod($row['data']);
 }
-//Tides
-
-
-
-
 
 // ————— Find matching spots —————
 $waveData      = new WaveData();
 $report        = new Report();
-$matchingSpots = $report->station_interpolation(
-  $pdo,
-  $data1,
-  $data2,
-  $waveData
-);
+$matchingSpots = $report->station_interpolation($pdo, $data1, $data2, $waveData);
 
-// Split spots into primary (tide-prefs matched) and other (no prefs or tide not matched)
-$primarySpots = [];
-$otherOptions = [];
+// ——— Lists ———
+$list1 = []; // ideal: dir+period ok AND tide match within 60 min (has prefs)
+$list2 = []; // optional: dir+period ok but (no prefs OR not in window)
+$list3 = []; // high energy override: WVHT > 0.56 m regardless of tide
+
+// Use blended WVHT from absolute midpoint as proxy for energy
+$wvhtBlend = is_numeric($absolute_mid['WVHT'] ?? null) ? (float)$absolute_mid['WVHT'] : 0.0;
+$WVHT_THRESHOLD = 0.56; // meters (~1.8 ft)
 
 foreach ($matchingSpots as $s) {
-  $hasPrefs = !empty($s['has_tide_prefs']);
-  $tideOk   = !empty($s['tide_ok']);
+// ————— Build the full parenthetical for every spot —————
+$wvhtFt = (isset($s['WVHT']) && is_numeric($s['WVHT']))
+  ? round(Convert::metersToFeet((float)$s['WVHT']), 2) . "'"
+  : "— ft";
 
-  if ($hasPrefs && $tideOk) {
-    $primarySpots[] = $s;
-  } else {
-    // "Other Options" includes: no tide prefs OR tide prefs that didn't match
-    $otherOptions[] = $s;
-  }
+$period = isset($s['dominant_period'])  ? "Period: {$s['dominant_period']} s" : null;
+$dir    = isset($s['interpolated_mwd']) ? "Dir: " . round($s['interpolated_mwd'], 0) . "°" : null;
+
+$tide = null;
+if (!empty($s['tide_reason']) && !empty($s['tide_reason_time'])) {
+  $tide = "Tide: {$s['tide_reason']} @ {$s['tide_reason_time']}";
+} elseif (!empty($s['next_pref']) && !empty($s['next_pref_time'])) {
+  $tide = "Tide: {$s['next_pref']} @ {$s['next_pref_time']}";
+} elseif (!empty($s['tide_note'])) {
+  $tide = "Tide: {$s['tide_note']}";
 }
 
-// Optional: bubble strong matches to the top of primary
-usort($primarySpots, function ($a, $b) {
-  return (int)!($b['tide_ok']) <=> (int)!($a['tide_ok']);
-});
+$parts = array_filter([$period, $dir, $tide]);
+// WVHT always first
+$s['parenthetical'] = '(' . $wvhtFt . (count($parts) ? ', ' . implode(', ', $parts) : '') . ')';
 
+// ————— Bucket logic (use per-spot weighted WVHT) —————
+$WVHT_UNDER_THRESHOLD = 0.6; // meters
+$spotWvht = (isset($s['WVHT']) && is_numeric($s['WVHT'])) ? (float)$s['WVHT'] : 0.0;
 
+if ($spotWvht < $WVHT_UNDER_THRESHOLD) {
+  // Sub-threshold surf (exclusive)
+  $list3[] = $s;
+} elseif (!empty($s['has_tide_prefs']) && !empty($s['tide_ok'])) {
+  // Ideal: prefs exist AND within 60-min window
+  $list1[] = $s;
+} else {
+  // Otherwise, optional
+  $list2[] = $s;
+}
+
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
   <meta charset="UTF-8">
   <title>Normal Surf</title>
   <style>
-    body {
-      font-family: sans-serif;
-      margin: 20px;
-    }
-
-    table {
-      border-collapse: collapse;
-      width: 100%;
-      margin-bottom: 30px;
-    }
-
-    th,
-    td {
-      padding: 6px 10px;
-      border: 1px solid #ccc;
-      text-align: center;
-    }
-
-    th {
-      background: #eee;
-    }
-
-    h1,
-    h2 {
-      margin-bottom: 10px;
-    }
-
-    .station-report {
-      display: flex;
-      gap: 20px;
-      /* if you want them the same width: */
-      /* justify-content: space-between; */
-    }
-
-    .station-report__item {
-      flex: 1;
-      padding: 10px;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      text-align: center;
-    }
-
-    footer {
-      width: 100%;
-      height: 400px;
-      position: relative;
-      bottom: 0;
-    }
+    body { font-family: sans-serif; margin: 20px; }
+    table { border-collapse: collapse; width: 100%; margin-bottom: 30px; }
+    th, td { padding: 6px 10px; border: 1px solid #ccc; text-align: center; }
+    th { background: #eee; }
+    .station-report { display: flex; gap: 20px; }
+    .station-report__item { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 4px; text-align: center; }
+    .muted { color: #666; }
+    .badge { display:inline-block; padding: 0 .4rem; margin-left:.35rem; border-radius: .3rem; background:#eef; color:#223; font-size: 12px; }
   </style>
 </head>
-
 <body>
-  <header>
-    <h1>Normal Surf</h1>
-  </header>
+  <header><h1>Normal Surf</h1></header>
   <hr>
+
   <section aria-labelledby="surf-report-heading">
     <h2 id="surf-report-heading">Surf Report For North East Florida </h2>
     <div class="station-report">
-      <?php foreach ($station_rows as $key => $row): ?>
+      <?php foreach ($station_rows as $row): ?>
         <div class="station-report__item">
           <h4><?= h($row['label']) ?></h4>
           <h3>
-            <?php if (is_numeric($row['data']['WVHT'])): ?>
-              <?= round(Convert::metersToFeet((float)$row['data']['WVHT']), 2) ?>'
-            <?php else: ?>
-              &mdash; ft
-            <?php endif; ?>
-
+            <?= is_numeric($row['data']['WVHT']) ? round(Convert::metersToFeet((float)$row['data']['WVHT']), 2) . "'" : "&mdash; ft" ?>
             @
-
-            <?php if (isset($row['dominant_period']) && is_numeric($row['dominant_period'])): ?>
-              <?= round((float)$row['dominant_period'], 1) ?>s
-            <?php else: ?>
-              &mdash; s
-            <?php endif; ?>
-
+            <?= isset($row['dominant_period']) && is_numeric($row['dominant_period']) ? round((float)$row['dominant_period'], 1) . "s" : "&mdash; s" ?>
             &
-            <?php if (is_numeric($row['data']['MWD'])): ?>
-              <?= round((float)$row['data']['MWD'], 0) ?>&deg;
-            <?php else: ?>
-              &mdash; &deg;
-            <?php endif; ?>
+            <?= is_numeric($row['data']['MWD']) ? round((float)$row['data']['MWD'], 0) . "&deg;" : "&mdash; &deg;" ?>
           </h3>
         </div>
       <?php endforeach; ?>
@@ -223,73 +142,48 @@ usort($primarySpots, function ($a, $b) {
     <hr>
   </section>
 
-  <section aria-labelledby="ideal-spots-heading">
-    <h2 id="ideal-spots-heading">List Of Optimal Spots:</h2>
+  <section aria-labelledby="spot-list">
+    <h2>List 1 <span class="badge">ideal</span></h2>
     <ul>
-      <?php if (empty($primarySpots)): ?>
-        <li>No spots match tide preferences right now.</li>
+      <?php if (empty($list1)): ?>
+        <li class="muted">No ideal spots right now.</li>
       <?php else: ?>
-        <?php foreach ($primarySpots as $s): ?>
-          <li>
-            <?= h($s['spot_name']) ?>
-            (Period: <?= h($s['dominant_period']) ?>&nbsp;s,
-            Dir: <?= h($s['interpolated_mwd']) ?>&deg;
-            <?php if (!empty($s['has_tide_prefs'])): ?>
-              , Tide: next preferred <?= h($s['next_pref'] ?? '—') ?>
-              <?php if (!empty($s['next_pref_time'])): ?>
-                @ <?= h($s['next_pref_time']) ?>
-              <?php endif; ?>
-            <?php else: ?>
-              , Tide: next marker <?= h($s['next_marker'] ?? '—') ?>
-              <?php if (!empty($s['next_marker_time'])): ?>
-                @ <?= h($s['next_marker_time']) ?>
-              <?php endif; ?>
-              <?php endif; ?>)
-          </li>
+        <?php foreach ($list1 as $row): ?>
+          <li><?= h($row['spot_name']) ?> <span class="muted"><?= h($row['parenthetical']) ?></span></li>
+        <?php endforeach; ?>
+      <?php endif; ?>
+    </ul>
+
+    <h2>List 2 <span class="badge">optional</span></h2>
+    <ul>
+      <?php if (empty($list2)): ?>
+        <li class="muted">No optional spots right now.</li>
+      <?php else: ?>
+        <?php foreach ($list2 as $row): ?>
+          <li><?= h($row['spot_name']) ?> <span class="muted"><?= h($row['parenthetical']) ?></span></li>
+        <?php endforeach; ?>
+      <?php endif; ?>
+    </ul>
+
+    <h2>List 3 <span class="badge">sub-threshold (WVHT &lt; 0.56 m)</span></h2>
+    <ul>
+      <?php if (empty($list3)): ?>
+        <li class="muted">No high energy spots right now.</li>
+      <?php else: ?>
+        <?php foreach ($list3 as $row): ?>
+          <li><?= h($row['spot_name']) ?> <span class="muted"><?= h($row['parenthetical']) ?></span></li>
         <?php endforeach; ?>
       <?php endif; ?>
     </ul>
   </section>
 
-  <section aria-labelledby="other-options-heading">
-    <h2 id="other-options-heading">Other Options</h2>
-    <ul>
-      <?php if (empty($otherOptions)): ?>
-        <li>None at the moment.</li>
-      <?php else: ?>
-        <?php foreach ($otherOptions as $s): ?>
-          
-          <li>
-            <?= h($s['spot_name']) ?>
-            (Period: <?= h($s['dominant_period']) ?>&nbsp;s,
-            Dir: <?= h($s['interpolated_mwd']) ?>&deg;
-            <?php if (!empty($s['tide_ok']) && !empty($s['tide_reason']) && !empty($s['tide_reason_time'])): ?>
-              , Tide: matched <?= h($s['tide_reason']) ?> @ <?= h($s['tide_reason_time']) ?>
-            <?php else: // fallback, shouldn't normally happen in primary 
-            ?>
-              <?php if (!empty($s['has_tide_prefs'])): ?>
-                , Tide: next preferred <?= h($s['next_pref'] ?? '—') ?><?php if (!empty($s['next_pref_time'])): ?> @ <?= h($s['next_pref_time']) ?><?php endif; ?>
-              <?php else: ?>
-                , Tide: next water level <?= h($s['next_marker'] ?? '—') ?><?php if (!empty($s['next_marker_time'])): ?> @ <?= h($s['next_marker_time']) ?><?php endif; ?>
-              <?php endif; ?>
-              <?php endif; ?>)
-          </li>
-        <?php endforeach; ?>
-      <?php endif; ?>
-    </ul>
-  </section>
-
-
-  <section aria-labelledby="latest-observations-heading">
-    <h2 id="latest-observations-heading">Latest Observations</h2>
+  <section>
+    <h2>Latest Observations</h2>
     <table>
-
       <thead>
         <tr>
           <th>Station</th>
-          <?php foreach ($station_columns as $col): ?>
-            <th><?= h($col) ?></th>
-          <?php endforeach; ?>
+          <?php foreach ($station_columns as $col): ?><th><?= h($col) ?></th><?php endforeach; ?>
         </tr>
       </thead>
       <tbody>
@@ -297,12 +191,7 @@ usort($primarySpots, function ($a, $b) {
           <tr>
             <td><?= h($station) ?></td>
             <?php foreach ($station_columns as $col): ?>
-              <td>
-                <?php
-                $val = $info['data'][$col] ?? null;
-                echo is_numeric($val) ? round($val, 2) : h($val ?? '—');
-                ?>
-              </td>
+              <td><?= is_numeric($info['data'][$col] ?? null) ? round($info['data'][$col], 2) : h($info['data'][$col] ?? '—') ?></td>
             <?php endforeach; ?>
           </tr>
         <?php endforeach; ?>
@@ -310,18 +199,13 @@ usort($primarySpots, function ($a, $b) {
     </table>
   </section>
 
-  <h5>Release Notes:</h5>
-  <p>
-    The spots list is derived from zones indicating significant wave concentration; from St. Mary’s Entrance to 13th Ave. S., Jacksonville Beach. Each zone is adjusted for refraction across various swell directions and periods over prominent bathymetry. Continued mapping southward will follow in the near future, although initial tests show few high-energy zones between South Jacksonville Beach and the Vilano shoals at the southern end of "South Ponte Vedra".
-  </p>
-  <p>
-    Future versions will integrate tide and wind data into the spot-selection model, along with forecasting and other features that support local intuition.
-  </p>
   <footer>
     <hr>
+    <h5>Release Notes:</h5>
+    <p>The spots list is derived from zones indicating significant wave concentration ...</p>
+    <p>Future versions will integrate tide and wind data ...</p>
     <strong>Patent Pending</strong>
     <p>© 2023 – 2025 Legenda LLC</p>
   </footer>
 </body>
-
 </html>
