@@ -10,6 +10,16 @@ import xarray as xr
 import requests
 from dotenv import load_dotenv
 
+# NEW: small adds for cron-friendliness
+import argparse
+import logging
+from pathlib import Path
+import contextlib
+try:
+    import fcntl  # not available on Windows; fine on Linux servers like Cloudways
+except Exception:
+    fcntl = None
+
 from nomads import latest_available_run, gfswave_file_name
 
 # ---------------- Stations (same run for all) ----------------
@@ -186,8 +196,57 @@ def fetch_point_series(run_date: dt.date, run_cycle: int,
         merged = merged.sel(time=~merged.get_index("time").duplicated())
     return merged
 
+# ---------------- NEW: cron/state helpers ----------------
+STATE_DIR  = Path(".state")
+STATE_FILE = STATE_DIR / "last_run.json"
+LOCK_FILE  = STATE_DIR / "cron.lock"
+
+def setup_logging():
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(message)s"
+    )
+
+def read_last_run() -> Tuple[dt.date, int] | Tuple[None, None]:
+    try:
+        with open(STATE_FILE, "r") as f:
+            obj = json.load(f)
+        d = dt.date.fromisoformat(obj["date"])
+        c = int(obj["cycle"])
+        return d, c
+    except Exception:
+        return None, None
+
+def write_last_run(run_date: dt.date, run_cycle: int) -> None:
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    with open(STATE_FILE, "w") as f:
+        json.dump({"date": run_date.isoformat(), "cycle": run_cycle}, f)
+
+@contextlib.contextmanager
+def cron_lock(disable_lock: bool = False):
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    if disable_lock or fcntl is None:
+        yield
+        return
+    with open(LOCK_FILE, "w") as f:
+        try:
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            yield
+        finally:
+            try:
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+            except Exception:
+                pass
+
 # ---------------- Main ----------------
 def main():
+    setup_logging()
+
+    parser = argparse.ArgumentParser(description="GFS-Wave → JSON time series per buoy")
+    parser.add_argument("--force", action="store_true", help="Run even if no new NOMADS run is available")
+    parser.add_argument("--no-lock", action="store_true", help="Disable file lock (not recommended for cron)")
+    args = parser.parse_args()
+
     load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", ".env"))
 
     # Vars + horizon
@@ -202,33 +261,54 @@ def main():
     out_dir  = os.getenv("OUT_DIR", "./.data/wave-forecast"); ensure_dir(out_dir)
     cache_dir = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", ".cache")); ensure_dir(cache_dir)
 
-    # Run selection (ONE run for all)
+    # Decide the run to process
     run_date_env  = (os.getenv("RUN_DATE")  or "").strip()
     run_cycle_env = (os.getenv("RUN_CYCLE") or "").strip()
-    if run_date_env and run_cycle_env:
-        if "-" in run_date_env:
-            y,m,d = map(int, run_date_env.split("-"))
+
+    # Lock to avoid overlapping cron executions
+    with cron_lock(disable_lock=args.no_lock):
+        # Gate: if env forces a specific run, skip "new run" check.
+        if run_date_env and run_cycle_env:
+            if "-" in run_date_env:
+                y,m,d = map(int, run_date_env.split("-"))
+            else:
+                y,m,d = int(run_date_env[:4]), int(run_date_env[4:6]), int(run_date_env[6:8])
+            run_date, run_cycle = dt.date(y,m,d), int(run_cycle_env)
+            logging.info(f"RUN override via env → {run_date} {run_cycle:02d}Z (gate bypass)")
         else:
-            y,m,d = int(run_date_env[:4]), int(run_date_env[4:6]), int(run_date_env[6:8])
-        run_date, run_cycle = dt.date(y,m,d), int(run_cycle_env)
-    else:
-        run_date, run_cycle = latest_available_run()
+            # Normal cron mode: compare remote latest with last processed
+            remote_date, remote_cycle = latest_available_run()
+            last_date, last_cycle = read_last_run()
+            logging.info(f"NOMADS latest: {remote_date} {remote_cycle:02d}Z | last processed: "
+                         f"{'-' if last_date is None else last_date} "
+                         f"{'' if last_cycle is None else f'{last_cycle:02d}Z'}")
 
-    print(f"Using run: {run_date} {run_cycle:02d}Z for stations: {', '.join(POINTS.keys())}")
+            if (not args.force) and (last_date == remote_date and last_cycle == remote_cycle):
+                logging.info("No new NOMADS run. Exiting.")
+                return
 
-    for station, coords in POINTS.items():
-        lat, lon = coords["lat"], coords["lon"]
-        print(f"\n=== {station} @ ({lat:.3f}, {lon:.3f}) ===")
-        ds = fetch_point_series(run_date, run_cycle, lat, lon, vars_list, fh_start, fh_end, fh_step, pad, cache_dir)
+            run_date, run_cycle = remote_date, remote_cycle
 
-        payload = dataset_to_payload(ds, lat, lon, round_dec)
-        # inject run metadata for auditing
-        payload.setdefault("meta", {}).setdefault("run", {"date": run_date.strftime("%Y-%m-%d"), "cycle": run_cycle})
+        print(f"Using run: {run_date} {run_cycle:02d}Z for stations: {', '.join(POINTS.keys())}")
 
-        out_path = os.path.join(out_dir, f"wave_point_{station}.json")
-        with open(out_path, "w") as f:
-            json.dump(payload, f, separators=(",", ":"))
-        print(f"Saved → {out_path}  ({len(payload['data'])} rows)")
+        # === Your existing processing ===
+        for station, coords in POINTS.items():
+            lat, lon = coords["lat"], coords["lon"]
+            print(f"\n=== {station} @ ({lat:.3f}, {lon:.3f}) ===")
+            ds = fetch_point_series(run_date, run_cycle, lat, lon, vars_list, fh_start, fh_end, fh_step, pad, cache_dir)
+
+            payload = dataset_to_payload(ds, lat, lon, round_dec)
+            # inject run metadata for auditing
+            payload.setdefault("meta", {}).setdefault("run", {"date": run_date.strftime("%Y-%m-%d"), "cycle": run_cycle})
+
+            out_path = os.path.join(out_dir, f"wave_point_{station}.json")
+            with open(out_path, "w") as f:
+                json.dump(payload, f, separators=(",", ":"))
+            print(f"Saved → {out_path}  ({len(payload['data'])} rows)")
+
+        # Mark this run as processed (only if we reached here without raising)
+        write_last_run(run_date, run_cycle)
+        logging.info(f"Recorded last processed run: {run_date} {run_cycle:02d}Z")
 
 if __name__ == "__main__":
     main()

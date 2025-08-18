@@ -1,0 +1,15 @@
+{
+    "logged_at_utc": "2025-08-18T18:22:30Z",
+    "inputs_etag": "b51dc04e160b78c60d8ced40639b0d70ecb78eff",
+    "json_dir": "\/Applications\/MAMP\/htdocs\/normal-surf\/data\/wave-forecast",
+    "db": {
+        "waves_41112": {
+            "latest_t_local": "2025-08-23 02:00:00",
+            "row_count": 41
+        },
+        "waves_41117": {
+            "latest_t_local": "2025-08-23 02:00:00",
+            "row_count": 41
+        }
+    }
+}
