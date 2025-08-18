@@ -16,3 +16,9 @@ Pulls GFS-Wave (WW3) forecast from NOAA NOMADS, subsets a lat-lon box around NDB
 2. Install deps:
    ```bash
    python -m pip install -r requirements.txt
+
+
+
+   run 
+   python Forecast/src/main.py
+
