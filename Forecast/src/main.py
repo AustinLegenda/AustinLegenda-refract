@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Forecast/src/main.py — GFS-Wave → point time series JSON for multiple buoys (same run)
+# Forecast/src/main.py — GFS-Wave → JSON time series per buoy (multi-station)
 
 import os, json, datetime as dt
 from typing import List, Tuple, Dict
@@ -12,14 +12,13 @@ from dotenv import load_dotenv
 
 from nomads import latest_available_run, gfswave_file_name
 
-# ---------------- config ----------------
-# Pull both points in the SAME run/cycle
+# ---------------- Stations (same run for all) ----------------
 POINTS: Dict[str, Dict[str, float]] = {
     "41112": {"lat": 30.709, "lon": -81.292},
-    "41117": {"lat": 29.999, "lon": -81.079},  # 29°59'56"N, 81°4'46"W
+    "41117": {"lat": 29.999, "lon": -81.079},
 }
 
-# ---------------- env helpers ----------------
+# ---------------- Env helpers ----------------
 def env_float(n, d):  v=os.getenv(n); return float(v) if v not in (None,"") else d
 def env_int(n, d):    v=os.getenv(n); return int(v) if v not in (None,"") else d
 def env_bool(n, d=False):
@@ -28,7 +27,7 @@ def env_bool(n, d=False):
 def env_list(n, d):   v=os.getenv(n); return [s.strip() for s in v.split(",") if s.strip()] if v else d
 def ensure_dir(p):    os.makedirs(p, exist_ok=True)
 
-# ---------------- lon helpers (WW3 uses 0..360) ----------------
+# ---------------- Lon helpers (WW3 is 0..360) ----------------
 def lon_to_360(lon_deg: float) -> float:
     x = lon_deg % 360.0
     return x if x >= 0 else x + 360.0
@@ -91,37 +90,54 @@ def select_point(ds: xr.Dataset, lat: float, lon_minus180_180: float) -> xr.Data
     lon_sel = lon_to_360(lon_minus180_180) if lon_max > 180.0 else lon_minus180_180
     return ds.sel(longitude=lon_sel, latitude=lat, method="nearest")
 
-def to_point_payload(ds: xr.Dataset, round_dec: int, pt_lat: float, pt_lon_minus180_180: float) -> dict:
-    """Return {meta, data:[{time, Hs_m, Dir_deg, Per_s}...]} with friendly names."""
+# ---------------- Formatter (your requested function) ----------------
+def dataset_to_payload(
+    ds: xr.Dataset,
+    pt_lat: float,
+    pt_lon_minus180_180: float,
+    round_dec: int = 2,
+) -> dict:
+    """
+    Convert a point-extracted Dataset into:
+      {"meta": {...}, "data": [{"time","Hs_m","Dir_deg","Per_s"}]}
+    """
     ds = normalize_vars(ds)
-    if round_dec > 0:
+
+    # Final names → your schema
+    rename_map = {}
+    if "HTSGW" in ds: rename_map["HTSGW"] = "Hs_m"
+    if "DIRPW" in ds: rename_map["DIRPW"] = "Dir_deg"
+    if "PERPW" in ds: rename_map["PERPW"] = "Per_s"
+    if rename_map: ds = ds.rename(rename_map)
+
+    # Optional rounding
+    if round_dec is not None and round_dec >= 0:
         for v in ds.data_vars:
-            ds[v].data = np.round(ds[v].data, round_dec)
-    # Final friendly names
-    rename_final = {}
-    if "HTSGW" in ds: rename_final["HTSGW"] = "Hs_m"
-    if "DIRPW" in ds: rename_final["DIRPW"] = "Dir_deg"
-    if "PERPW" in ds: rename_final["PERPW"] = "Per_s"
-    if rename_final: ds = ds.rename(rename_final)
+            if np.issubdtype(ds[v].dtype, np.number):
+                ds[v].data = np.round(ds[v].data, round_dec)
 
     df = ds.to_dataframe().reset_index()
-    lon_meta = (float(df["longitude"].iloc[0]) if "longitude" in df else pt_lon_minus180_180)
-    if lon_meta > 180.0: lon_meta -= 360.0
-    lat_meta = float(df.get("latitude", pd.Series([pt_lat])).iloc[0]) if "latitude" in df else pt_lat
 
-    vars_present = [c for c in ["Hs_m","Dir_deg","Per_s"] if c in df.columns]
+    # Meta coords (fallback to requested point)
+    lon_meta = float(df["longitude"].iloc[0]) if "longitude" in df else pt_lon_minus180_180
+    if lon_meta > 180.0: lon_meta -= 360.0
+    lat_meta = float(df["latitude"].iloc[0]) if "latitude" in df else pt_lat
+
+    vars_present = [c for c in ("Hs_m","Dir_deg","Per_s") if c in df.columns]
     records = []
     for _, row in df.iterrows():
-        entry = {"time": pd.Timestamp(row["time"]).isoformat()}
+        rec = {"time": pd.Timestamp(row["time"]).isoformat()}
         for k in vars_present:
             val = row[k]
-            entry[k] = None if pd.isna(val) else float(val)
-        records.append(entry)
+            rec[k] = None if pd.isna(val) else float(val)
+        records.append(rec)
 
-    return {"meta": {"model": "gfswave", "point": {"lat": lat_meta, "lon": lon_meta}, "vars": vars_present},
-            "data": records}
+    return {
+        "meta": {"model": "gfswave", "point": {"lat": float(lat_meta), "lon": float(lon_meta)}, "vars": vars_present},
+        "data": records,
+    }
 
-# ---------------- fetch one station ----------------
+# ---------------- Fetch one station into a point series ----------------
 def fetch_point_series(run_date: dt.date, run_cycle: int,
                        lat: float, lon: float,
                        vars_list: List[str], fh_start: int, fh_end: int, fh_step: int,
@@ -165,13 +181,16 @@ def fetch_point_series(run_date: dt.date, run_cycle: int,
         raise SystemExit("No forecast steps opened; widen POINT_PAD_DEG (e.g., 0.4) or check run/cycle.")
 
     merged = xr.concat(point_ds_list, dim="time", coords="minimal", compat="override", join="override").sortby("time")
+    # dedupe times just in case
+    if "time" in merged.coords:
+        merged = merged.sel(time=~merged.get_index("time").duplicated())
     return merged
 
-# ---------------- main ----------------
+# ---------------- Main ----------------
 def main():
     load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", ".env"))
 
-    # variables + horizon
+    # Vars + horizon
     vars_list = env_list("WAVE_VARS", ["HTSGW","DIRPW","PERPW"])
     fh_start = env_int("FH_START", 0)
     fh_end   = env_int("FH_END", 120)
@@ -179,11 +198,11 @@ def main():
     round_dec = env_int("ROUND_DECIMALS", 2)
     pad = env_float("POINT_PAD_DEG", 0.2)
 
-    # output/caching
+    # Output/caching
     out_dir  = os.getenv("OUT_DIR", "./.data/wave-forecast"); ensure_dir(out_dir)
     cache_dir = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", ".cache")); ensure_dir(cache_dir)
 
-    # run selection (ONE run for all stations)
+    # Run selection (ONE run for all)
     run_date_env  = (os.getenv("RUN_DATE")  or "").strip()
     run_cycle_env = (os.getenv("RUN_CYCLE") or "").strip()
     if run_date_env and run_cycle_env:
@@ -197,12 +216,14 @@ def main():
 
     print(f"Using run: {run_date} {run_cycle:02d}Z for stations: {', '.join(POINTS.keys())}")
 
-    # loop stations
     for station, coords in POINTS.items():
         lat, lon = coords["lat"], coords["lon"]
         print(f"\n=== {station} @ ({lat:.3f}, {lon:.3f}) ===")
         ds = fetch_point_series(run_date, run_cycle, lat, lon, vars_list, fh_start, fh_end, fh_step, pad, cache_dir)
-        payload = to_point_payload(ds, round_dec, lat, lon)
+
+        payload = dataset_to_payload(ds, lat, lon, round_dec)
+        # inject run metadata for auditing
+        payload.setdefault("meta", {}).setdefault("run", {"date": run_date.strftime("%Y-%m-%d"), "cycle": run_cycle})
 
         out_path = os.path.join(out_dir, f"wave_point_{station}.json")
         with open(out_path, "w") as f:

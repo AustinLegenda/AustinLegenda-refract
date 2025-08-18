@@ -5,6 +5,8 @@ namespace Legenda\NormalSurf\Hooks;
 use Legenda\NormalSurf\Hooks\SpectralDataParser;
 use Legenda\NormalSurf\Repositories\NoaaRepository;
 use Legenda\NormalSurf\Repositories\NoaaTideRepository;
+use Legenda\NormalSurf\Repositories\WaveForecastRepository;
+
 use PDO;
 
 class LoadData
@@ -86,4 +88,57 @@ class LoadData
         $next = NoaaTideRepository::getNextHLByTable($pdo, $table, $nowUtc, 2);
         return [$prev, $next];
     }
+
+    //wave forecast
+        // ---- WAVES (GFS-Wave JSON → per-station tables like waves_41112) ----
+
+    /**
+     * Import a single wave JSON file (e.g., .data/wave-forecast/wave_point_41112.json).
+     * Returns the table used, e.g. 'waves_41112'.
+     */
+    public static function import_waves_from_json(
+        PDO $pdo,
+        string $jsonPath,
+        ?string $tableName = null,
+        string $localTz = 'America/New_York'
+    ): string {
+        return WaveForecastRepository::importJson($pdo, $jsonPath, $tableName, $localTz);
+    }
+
+    /**
+     * Import all wave JSON files from a directory (e.g., .data/wave-forecast).
+     * Returns an array of ['file' => ..., 'table' => ...].
+     */
+    public static function import_waves_from_dir(
+        PDO $pdo,
+        string $dirPath,
+        string $localTz = 'America/New_York'
+    ): array {
+        return WaveForecastRepository::importDirectory($pdo, $dirPath, $localTz);
+    }
+
+    /**
+     * Convenience: next N rows from now (UTC) for a station id like '41112'.
+     */
+    public static function waves_next(PDO $pdo, string $stationId, string $nowUtc, int $limit = 8): array
+    {
+        return WaveForecastRepository::getNext($pdo, $stationId, $nowUtc, $limit);
+    }
+
+    /**
+     * Convenience: previous row strictly before now (UTC) for a station id.
+     */
+    public static function waves_prev(PDO $pdo, string $stationId, string $nowUtc): ?array
+    {
+        return WaveForecastRepository::getPrev($pdo, $stationId, $nowUtc);
+    }
+
+    /**
+     * Convenience: explicit range [startUtc, endUtc] (good for “tomorrow”).
+     */
+    public static function waves_range(PDO $pdo, string $stationId, string $startUtc, string $endUtc, int $limit = 500): array
+    {
+        return WaveForecastRepository::getRange($pdo, $stationId, $startUtc, $endUtc, $limit);
+    }
+
 }
