@@ -11,24 +11,18 @@ use DateTimeZone;
 use Legenda\NormalSurf\Helpers\Maths;
 use Legenda\NormalSurf\Utilities\TidePreference;
 use Legenda\NormalSurf\Utilities\TidePhase;
-use Legenda\NormalSurf\Utilities\WavePreference;   
+use Legenda\NormalSurf\Utilities\WavePreference;
 use Legenda\NormalSurf\Repositories\StationRepo;
 
 final class SpotSelector
 {
-    private WaveCell $waveCell;
 
-    public function __construct(private ?TidePreference $tidePrefs = null)
+    private TidePreference $tidePrefs;
+    public function __construct(?TidePreference $tidePrefs = null)
     {
-        // Downstream default so Report doesn't need Utilities
-        $this->tidePrefs ??= new TidePreference(new TidePhase());
-        $this->waveCell = new WaveCell();
+        $this->tidePrefs = $tidePrefs ?? new TidePreference(new TidePhase());
     }
 
-    /**
-     * Selection for "Where To Surf Now" using two realtime station rows.
-     * Returns raw, presentation-free data only (plus wave_cell string for convenience).
-     */
     public function select(PDO $pdo, array $data1, array $data2): array
     {
         $rows = [];
@@ -72,9 +66,12 @@ final class SpotSelector
             $hasPrefs = !empty($spot['H_tide']) || !empty($spot['M_plus_tide']) ||
                 !empty($spot['M_minus_tide']) || !empty($spot['L_tide']);
 
+            $tideOk = $hasPrefs && !empty($tp['ok']);
+            $listBucket = $tideOk ? '1' : '2';
+
             $listBucket = (!empty($tp['ok']) && $hasPrefs) ? '1' : '2';
 
-            // build row (wave_cell stays here — view concern)
+
             $rows[] = [
                 'spot_id'   => $spot['id'],
                 'spot_name' => $spot['spot_name'],
@@ -90,32 +87,22 @@ final class SpotSelector
                 'dist_41112'       => $W['dist_41112'],
                 'dist_41117'       => $W['dist_41117'],
 
-                'wave_cell' => $this->waveCell->dominantCell([
-                    'WVHT' => $W['hs_m'],
-                    'MWD'  => $W['dir_deg'],
-                    'SwP'  => $W['per_s'],
-                    'WWP'  => $W['per_s'],
-                    'APD'  => $W['per_s'],
-                ]),
-
-                // tide (raw)
-                'tide'      => $tp['tide_reason'] ?? $tp['next_pref'] ?? $tp['next_marker'] ?? '—',
-                'wind'      => '—',
-
-                'tide_ok'                => (bool)($tp['ok'] ?? false),
-                'phase_code'             => $tp['tide_reason'] ?? $tp['next_pref'] ?? $tp['next_marker'] ?? null,
-                'phase_time_utc'         => $tp['tide_reason_utc'] ?? $tp['next_pref_utc'] ?? $tp['next_marker_utc'] ?? null,
+                // tide raw fields for TideCell formatter
+                'tide'                  => $tp['tide_reason'] ?? $tp['next_pref'] ?? $tp['next_marker'] ?? '—',
+                'phase_code'            => $tp['tide_reason'] ?? $tp['next_pref'] ?? $tp['next_marker'] ?? null,
+                'phase_time_utc'        => $tp['tide_reason_utc'] ?? $tp['next_pref_utc'] ?? $tp['next_marker_utc'] ?? null,
                 'closest_pref_delta_min' => $tp['closest_pref_delta_min'] ?? null,
+                'next_pref'             => $tp['next_pref'] ?? null,
+                'next_pref_utc'         => $tp['next_pref_utc'] ?? null,
+                'next_marker'           => $tp['next_marker'] ?? null,
+                'next_marker_utc'       => $tp['next_marker_utc'] ?? null,
 
-                // extras passthrough
-                'has_tide_prefs'   => $hasPrefs,
-                'next_pref'        => $tp['next_pref'] ?? null,
-                'next_pref_utc'    => $tp['next_pref_utc'] ?? null,
-                'next_marker'      => $tp['next_marker'] ?? null,
-                'next_marker_utc'  => $tp['next_marker_utc'] ?? null,
+                'has_tide_prefs' => $hasPrefs,
+                'tide_ok'        => $tideOk,
 
                 // decision
                 'list_bucket' => $listBucket,
+                'wind'        => '—', // placeholder            
             ];
         }
 
@@ -187,13 +174,6 @@ final class SpotSelector
                 'hs_m'      => $WF['hs_m'],
                 'per_s'     => $WF['per_s'],
                 'dir_deg'   => $WF['dir_deg'],
-                'wave_cell' => $this->waveCell->dominantCell([
-                    'WVHT' => $WF['hs_m'],
-                    'MWD'  => $WF['dir_deg'],
-                    'SwP'  => $WF['per_s'],
-                    'WWP'  => $WF['per_s'],
-                    'APD'  => $WF['per_s'],
-                ]),
                 'tide'                  => $tideCode ?? '—',
                 'wind'                  => '—',
                 'phase_code'            => $tideCode,
@@ -271,13 +251,6 @@ final class SpotSelector
                 'hs_m'      => $WF['hs_m'],
                 'per_s'     => $WF['per_s'],
                 'dir_deg'   => $WF['dir_deg'],
-                'wave_cell' => $this->waveCell->dominantCell([
-                    'WVHT' => $WF['hs_m'],
-                    'MWD'  => $WF['dir_deg'],
-                    'SwP'  => $WF['per_s'],
-                    'WWP'  => $WF['per_s'],
-                    'APD'  => $WF['per_s'],
-                ]),
                 'tide'                  => $tideCode ?? '—',
                 'wind'                  => '—',
                 'phase_code'     => $tideCode,

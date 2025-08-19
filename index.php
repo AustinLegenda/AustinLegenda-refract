@@ -14,7 +14,8 @@ $report = new Report();
 $vmCC    = $report->currentConditionsView();              
 $vmNow   = $report->whereToSurfNowView();                 
 $vmLater = $report->whereToSurfLaterTodayView();         
-$vmTom   = $report->whereToSurfTomorrowView();  
+$vmTom   = $report->whereToSurfTomorrowView();
+$vm72 = $report->forecast72hView(); ?>
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -165,7 +166,7 @@ $vmTom   = $report->whereToSurfTomorrowView();
 
   </section>
   <section aria-labelledby="later-heading">
-    <h2 id="later-heading">Where To Surf Later (<?= htmlspecialchars($vmLater['header_date']) ?>)</h2>
+    <h3 id="later-heading">Where To Surf Later (<?= htmlspecialchars($vmLater['header_date']) ?>)</h3>
     <table class="table">
       <thead>
         <tr>
@@ -194,7 +195,7 @@ $vmTom   = $report->whereToSurfTomorrowView();
   </section>
 
   <section aria-labelledby="tomorrow-heading">
-    <h2 id="tomorrow-heading">Where To Surf Tomorrow (<?= htmlspecialchars($vmTom['header_date']) ?>)</h2>
+    <h3 id="tomorrow-heading">Where To Surf Tomorrow (<?= htmlspecialchars($vmTom['header_date']) ?>)</h3>
     <table class="table">
       <thead>
         <tr>
@@ -221,6 +222,28 @@ $vmTom   = $report->whereToSurfTomorrowView();
       </tbody>
     </table>
   </section>
-</body>
+<section aria-labelledby="forecast72-heading">
+  <h2 id="forecast72-heading">72hr Forecast</h2>
+
+  <?php foreach (($vm72['stations'] ?? []) as $st): ?>
+    <table>
+      <thead>
+        <tr><th colspan="3"><?= htmlspecialchars($st['label']) ?></th></tr>
+        <tr><th>When</th><th>Wave</th><th>Tide</th></tr>
+      </thead>
+      <tbody>
+        <?php if (!empty($st['rows'])): foreach ($st['rows'] as $r): ?>
+          <tr>
+            <td><?= htmlspecialchars($r['when']) ?></td>
+            <td><?= $r['wave_cell'] ?></td>
+            <td><?= htmlspecialchars($r['tide']) ?></td>
+          </tr>
+        <?php endforeach; else: ?>
+          <tr><td colspan="3"><em>No tide-anchored forecast rows.</em></td></tr>
+        <?php endif; ?>
+      </tbody>
+    </table>
+  <?php endforeach; ?>
+</section></body>
 
 </html>

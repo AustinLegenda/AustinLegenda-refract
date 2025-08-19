@@ -4,7 +4,7 @@ namespace Legenda\NormalSurf\Utilities;
 final class WavePeriod
 {
     // Same logic as your computeDominantPeriod()
-    public static function computeDominantPeriod(array $d, float $bias = 0.65): ?float
+    public static function computeDominantPeriod(array $d, float $bias = 0.80): ?float
     {
         if (!isset($d['SwH'], $d['WWH'], $d['SwP'], $d['WWP'])) {
             return null;
