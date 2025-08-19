@@ -7,4 +7,22 @@ $baseDir = dirname($vendorDir);
 
 return array(
     'Composer\\InstalledVersions' => $vendorDir . '/composer/InstalledVersions.php',
+    'Legenda\\NormalSurf\\API\\NoaaRequest' => $baseDir . '/includes/API/NoaaRequest.php',
+    'Legenda\\NormalSurf\\BatchProcessing\\SpectralDataParser' => $baseDir . '/includes/BatchProcessing/SpectralDataParser.php',
+    'Legenda\\NormalSurf\\Helpers\\Format' => $baseDir . '/includes/Helpers/Format.php',
+    'Legenda\\NormalSurf\\Helpers\\Maths' => $baseDir . '/includes/Helpers/Maths.php',
+    'Legenda\\NormalSurf\\Hooks\\LoadData' => $baseDir . '/includes/Hooks/LoadData.php',
+    'Legenda\\NormalSurf\\Hooks\\SpotSelector' => $baseDir . '/includes/Hooks/SpotSelector.php',
+    'Legenda\\NormalSurf\\Hooks\\TideCell' => $baseDir . '/includes/Hooks/TideCell.php',
+    'Legenda\\NormalSurf\\Hooks\\WaveCell' => $baseDir . '/includes/Hooks/WaveCell.php',
+    'Legenda\\NormalSurf\\Repositories\\StationRepo' => $baseDir . '/includes/Repositories/StationRepo.php',
+    'Legenda\\NormalSurf\\Repositories\\TideRepo' => $baseDir . '/includes/Repositories/TideRepo.php',
+    'Legenda\\NormalSurf\\Repositories\\WaveBuoyRepo' => $baseDir . '/includes/Repositories/WaveBuoyRepo.php',
+    'Legenda\\NormalSurf\\Repositories\\WaveForecastRepo' => $baseDir . '/includes/Repositories/WaveForecastRepo.php',
+    'Legenda\\NormalSurf\\Templates\\Report' => $baseDir . '/Templates/Report.php',
+    'Legenda\\NormalSurf\\Utilities\\Interpolator' => $baseDir . '/includes/Utilities/Interpolator.php',
+    'Legenda\\NormalSurf\\Utilities\\TidePhase' => $baseDir . '/includes/Utilities/TidePhase.php',
+    'Legenda\\NormalSurf\\Utilities\\TidePreference' => $baseDir . '/includes/Utilities/TidePreference.php',
+    'Legenda\\NormalSurf\\Utilities\\WavePeriod' => $baseDir . '/includes/Utilities/WavePeriod.php',
+    'Legenda\\NormalSurf\\Utilities\\WavePreference' => $baseDir . '/includes/Utilities/WavePreference.php',
 );

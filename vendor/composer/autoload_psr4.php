@@ -6,5 +6,6 @@ $vendorDir = dirname(__DIR__);
 $baseDir = dirname($vendorDir);
 
 return array(
+    'Legenda\\NormalSurf\\Templates\\' => array($baseDir . '/Templates'),
     'Legenda\\NormalSurf\\' => array($baseDir . '/includes'),
 );

@@ -2,10 +2,10 @@
 
 namespace Legenda\NormalSurf\Hooks;
 
-use Legenda\NormalSurf\Hooks\SpectralDataParser;
-use Legenda\NormalSurf\Repositories\NoaaRepository;
-use Legenda\NormalSurf\Repositories\NoaaTideRepository;
-use Legenda\NormalSurf\Repositories\WaveForecastRepository;
+use Legenda\NormalSurf\BatchProcessing\SpectralDataParser;
+use Legenda\NormalSurf\Repositories\WaveBuoyRepo;
+use Legenda\NormalSurf\Repositories\TideRepo;
+use Legenda\NormalSurf\Repositories\WaveForecastRepo;
 
 use PDO;
 
@@ -14,7 +14,7 @@ class LoadData
     public static function conn_report(string $station = '41112'): array
     {
         // 1) Fetch and filter data
-        $rawData = NoaaRepository::get_data($station);
+        $rawData = WaveBuoyRepo::get_data($station);
         $data    = SpectralDataParser::filter($rawData);
 
         $dataCols = $data['columns'];
@@ -64,7 +64,7 @@ class LoadData
     {
         // lets the repo derive table from the filename (e.g., 8720030_annual.xml → tides_8720030)
         // or you can pass 'tides_8720030' explicitly via $tableName
-        return NoaaTideRepository::importAnnualHLXml($pdo, $xmlPath, $tableName);
+        return TideRepo::importAnnualHLXml($pdo, $xmlPath, $tableName);
     }
 
     /**
@@ -73,8 +73,8 @@ class LoadData
      */
     public static function tides_window(PDO $pdo, string $stationId, string $nowUtc): array
     {
-        $prev = NoaaTideRepository::getPrevHL($pdo, $stationId, $nowUtc);
-        $next = NoaaTideRepository::getNextHL($pdo, $stationId, $nowUtc, 2);
+        $prev = TideRepo::getPrevHL($pdo, $stationId, $nowUtc);
+        $next = TideRepo::getNextHL($pdo, $stationId, $nowUtc, 2);
         return [$prev, $next];
     }
 
@@ -84,8 +84,8 @@ class LoadData
      */
     public static function tides_window_by_table(PDO $pdo, string $table, string $nowUtc): array
     {
-        $prev = NoaaTideRepository::getPrevHLByTable($pdo, $table, $nowUtc);
-        $next = NoaaTideRepository::getNextHLByTable($pdo, $table, $nowUtc, 2);
+        $prev = TideRepo::getPrevHLByTable($pdo, $table, $nowUtc);
+        $next = TideRepo::getNextHLByTable($pdo, $table, $nowUtc, 2);
         return [$prev, $next];
     }
 
@@ -102,7 +102,7 @@ class LoadData
         ?string $tableName = null,
         string $localTz = 'America/New_York'
     ): string {
-        return WaveForecastRepository::importJson($pdo, $jsonPath, $tableName, $localTz);
+        return WaveForecastRepo::importJson($pdo, $jsonPath, $tableName, $localTz);
     }
 
     /**
@@ -114,7 +114,7 @@ class LoadData
         string $dirPath,
         string $localTz = 'America/New_York'
     ): array {
-        return WaveForecastRepository::importDirectory($pdo, $dirPath, $localTz);
+        return WaveForecastRepo::importDirectory($pdo, $dirPath, $localTz);
     }
 
     /**
@@ -122,7 +122,7 @@ class LoadData
      */
     public static function waves_next(PDO $pdo, string $stationId, string $nowUtc, int $limit = 8): array
     {
-        return WaveForecastRepository::getNext($pdo, $stationId, $nowUtc, $limit);
+        return WaveForecastRepo::getNext($pdo, $stationId, $nowUtc, $limit);
     }
 
     /**
@@ -130,7 +130,7 @@ class LoadData
      */
     public static function waves_prev(PDO $pdo, string $stationId, string $nowUtc): ?array
     {
-        return WaveForecastRepository::getPrev($pdo, $stationId, $nowUtc);
+        return WaveForecastRepo::getPrev($pdo, $stationId, $nowUtc);
     }
 
     /**
@@ -138,7 +138,7 @@ class LoadData
      */
     public static function waves_range(PDO $pdo, string $stationId, string $startUtc, string $endUtc, int $limit = 500): array
     {
-        return WaveForecastRepository::getRange($pdo, $stationId, $startUtc, $endUtc, $limit);
+        return WaveForecastRepo::getRange($pdo, $stationId, $startUtc, $endUtc, $limit);
     }
 
 }

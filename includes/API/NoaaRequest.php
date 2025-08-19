@@ -2,7 +2,7 @@
 
 namespace Legenda\NormalSurf\API;
 
-use Legenda\NormalSurf\Hooks\SpectralDataParser;
+use Legenda\NormalSurf\BatchProcessing\SpectralDataParser;
 use Legenda\NormalSurf\Hooks\LoadData;
 
 class NoaaRequest

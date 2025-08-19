@@ -1,7 +1,8 @@
 {
   "autoload": {
     "psr-4": {
-      "Legenda\\NormalSurf\\": "includes/"
+      "Legenda\\NormalSurf\\": "includes/",
+      "Legenda\\NormalSurf\\Templates\\": "Templates/"
     }
   }
 }
