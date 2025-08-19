@@ -1,0 +1,131 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Legenda\NormalSurf\Hooks;
+
+use Legenda\NormalSurf\Services\PeriodService;
+use Legenda\NormalSurf\Hooks\Convert;
+
+
+final class Format
+{
+    /**
+     * Human-friendly local time (12‑hour, no seconds).
+     * Example: "Thursday, August 8, 4:05 PM"
+     */
+    public static function localLabel(string $utcTime, string $tz = 'America/New_York'): string
+    {
+        $dt = new \DateTime($utcTime, new \DateTimeZone('UTC'));
+        $dt->setTimezone(new \DateTimeZone($tz));
+        return $dt->format('l, F j, g:i A');
+    }
+
+    /**
+     * Human-friendly clock (e.g., "4:00 PM") from UTC.
+     */
+    public static function localClock(string $utcTime, string $tz = 'America/New_York'): string
+    {
+        $dt = new \DateTime($utcTime, new \DateTimeZone('UTC'));
+        $dt->setTimezone(new \DateTimeZone($tz));
+        return $dt->format('g:i A');
+    }
+
+    /**
+     * Hours:Minutes in local time.
+     * Defaults to 12-hour with AM/PM (e.g., "4:05 PM").
+     * Toggle $ampm=false for 24-hour (e.g., "16:05").
+     * Set $padHour=true to zero-pad the hour ("04:05 PM" / "16:05").
+     */
+    public static function localHm(string $utcTime, string $tz = 'America/New_York', bool $ampm = true, bool $padHour = false): string
+    {
+        $dt = new \DateTime($utcTime, new \DateTimeZone('UTC'));
+        $dt->setTimezone(new \DateTimeZone($tz));
+        if ($ampm) {
+            return $dt->format($padHour ? 'h:i A' : 'g:i A');
+        }
+        // 24-hour
+        return $dt->format($padHour ? 'H:i' : 'G:i');
+    }
+
+     /**
+     * Convert minutes → "Xh Ym" (pads minutes to 2 digits). 0 → "now".
+     */
+    public static function minutesToHm(int $minutes): string
+    {
+        if ($minutes <= 0) return 'now';
+        $h = intdiv($minutes, 60);
+        $m = $minutes % 60;
+        if ($h > 0) {
+            return sprintf('%dh %02dm', $h, $m);
+        }
+        return sprintf('%dm', $m);
+    }
+
+    /**
+     * Safe string for optional values (returns &mdash; when null/empty).
+     */
+    public static function safe(?string $s): string
+    {
+        $s = trim((string)$s);
+        return ($s === '' || $s === '—' || $s === '-') ? '&mdash;' : htmlspecialchars($s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    }
+
+    /**
+     * Compute dominant period from a row using existing PeriodService.
+     * Expects SwH/WWH + SwP/WWP fields present in $row.
+     */
+    public static function dominantPeriod(?array $row): ?float
+    {
+        if (!$row) return null;
+        return PeriodService::computeDominantPeriod($row);
+    }
+
+// Canonical: use existing Convert (no re-implementation)
+public static function waveCellFromParts(?float $wvht_m, ?float $period_s, ?float $mwd_deg): string
+{
+    if ($wvht_m === null || $period_s === null || $mwd_deg === null) return '&mdash;';
+    $ft = round(Convert::metersToFeet($wvht_m, 1), 1);
+    $h  = (abs($ft - round($ft)) < 0.05) ? (string)round($ft) : number_format($ft, 1);
+    $p  = (abs($period_s - round($period_s, 1)) < 1e-6) ? rtrim(rtrim(number_format($period_s, 1), '0'), '.') : (string)$period_s;
+    $d  = (int)round($mwd_deg);
+    return "{$h}' @ {$p}s & {$d}°";
+}
+
+// Thin wrappers (safe to keep until all callsites are moved)
+public static function waveCellDominant(?array $row): string
+{
+    if (!$row) return '&mdash;';
+    $h_m = isset($row['WVHT']) && is_numeric($row['WVHT']) ? (float)$row['WVHT'] : null;
+    $dp  = \Legenda\NormalSurf\Services\PeriodService::computeDominantPeriod($row);
+    $dir = isset($row['MWD']) && is_numeric($row['MWD']) ? (float)$row['MWD'] : null;
+    return self::waveCellFromParts($h_m, $dp, $dir);
+}
+
+public static function waveCell(?array $row): string
+{
+    if (!$row) return '&mdash;';
+    $h_m = isset($row['WVHT']) && is_numeric($row['WVHT']) ? (float)$row['WVHT'] : null;
+    $per = isset($row['SwP']) && is_numeric($row['SwP']) ? (float)$row['SwP']
+         : (isset($row['APD']) && is_numeric($row['APD']) ? (float)$row['APD'] : null);
+    $dir = isset($row['MWD']) && is_numeric($row['MWD']) ? (float)$row['MWD'] : null;
+    return self::waveCellFromParts($h_m, $per, $dir);
+}
+
+    // ——— Placeholders you can swap later with real services ———
+
+    public static function tidePhaseNowPlaceholder(): string
+    {
+        return 'Low Incoming';
+    }
+
+    public static function nextTidePlaceholder(): string
+    {
+        return 'High @ 7:00PM';
+    }
+
+    public static function windPlaceholder(): string
+    {
+        return 'ESE @ 12kts';
+    }
+}

@@ -33,6 +33,12 @@ final class SpotSelector
         ];
 
         $nowUtc = Convert::UTC_time();
+        // Pretty labels for tide codes
+        $__TIDE_LABEL = ['H' => 'High', 'L' => 'Low', 'M+' => 'Mid Incoming', 'M-' => 'Mid Outgoing'];
+        $__label = static function (?string $code) use ($__TIDE_LABEL): ?string {
+            return $code === null ? null : ($__TIDE_LABEL[$code] ?? $code);
+        };
+
 
         foreach ($spots as $spot) {
             $lat = (float)$spot['region_lat'];
@@ -84,6 +90,7 @@ final class SpotSelector
             // has tide prefs?
             $hasPrefs = !empty($spot['H_tide']) || !empty($spot['M_plus_tide']) || !empty($spot['M_minus_tide']) || !empty($spot['L_tide']);
 
+
             if ($hasPrefs) {
                 if (!empty($tp['ok'])) {
                     // Ideal: all true, show the exact matching reason/time
@@ -91,7 +98,7 @@ final class SpotSelector
                     $phase = $tp['tide_reason'] ?? null;         // 'H' | 'L' | 'M+' | 'M-'
                     $time  = $tp['tide_reason_time'] ?? null;    // local str
                     if ($phase && $time) {
-                        $tideNote = "{$phase} @ {$time}";
+                        $tideNote = $__label($phase) . " @ {$time}";
                     }
                     $periodNote = "Period: {$dominantPeriod} s";
                     $dirNote    = "Dir: " . round($interpMWD, 0) . "°";
@@ -103,7 +110,7 @@ final class SpotSelector
                     $phase = $tp['next_pref'] ?? null;
                     $time  = $tp['next_pref_time'] ?? null;
                     if ($phase && $time) {
-                        $tideNote = "next preferred {$phase} @ {$time}";
+                        $tideNote = $__label($phase) . " @ {$time}";
                     }
                 }
             } else {
@@ -111,7 +118,7 @@ final class SpotSelector
                 $phase = $tp['next_marker'] ?? null;
                 $time  = $tp['next_marker_time'] ?? null;
                 if ($phase && $time) {
-                    $tideNote = "next tide {$phase} @ {$time}";
+                   $tideNote = $__label($phase) . " @ {$time}";
                 }
             }
 

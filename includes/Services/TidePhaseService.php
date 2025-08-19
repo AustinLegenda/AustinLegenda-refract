@@ -198,4 +198,73 @@ final class TidePhaseService
         ];
     }
 
+    public function stateForStation(PDO $pdo, string $stationId, string $nowUtc, int $slackMin = 30): array
+{
+    // Get nearest previous and next H/L (skip 'I' rows)
+    $prev = \Legenda\NormalSurf\Repositories\NoaaTideRepository::getPrevHL($pdo, $stationId, $nowUtc);
+    $nextList = \Legenda\NormalSurf\Repositories\NoaaTideRepository::getNextHL($pdo, $stationId, $nowUtc, 3);
+    $next = null;
+    foreach ($nextList as $n) {
+        if ($n && ($n['hl_type'] === 'H' || $n['hl_type'] === 'L')) { $next = $n; break; }
+    }
+
+    if (!$prev && !$next) {
+        return ['state' => null];
+    }
+
+    $now = new \DateTime($nowUtc, new \DateTimeZone('UTC'));
+
+    $checkSlack = function (?array $row, string $label) use ($now, $slackMin) {
+        if (!$row) return null;
+        $t = new \DateTime($row['t_utc'], new \DateTimeZone('UTC'));
+        $diffMin = abs(($now->getTimestamp() - $t->getTimestamp()) / 60);
+        if ($diffMin <= $slackMin) {
+            $start = (clone $t)->modify("-{$slackMin} minutes")->format('Y-m-d H:i:00');
+            $end   = (clone $t)->modify("+{$slackMin} minutes")->format('Y-m-d H:i:00');
+            return ['state' => $label, 'state_code' => ($label === 'High' ? 'H' : 'L'), 'slack_start_utc' => $start, 'slack_end_utc' => $end, 'peak_utc' => $t->format('Y-m-d H:i:00')];
+        }
+        return null;
+    };
+
+    // High/Low slack windows first (± 30m around the peak)
+    if ($prev && $prev['hl_type'] === 'H') { if ($hit = $checkSlack($prev, 'High')) return $hit; }
+    if ($prev && $prev['hl_type'] === 'L') { if ($hit = $checkSlack($prev, 'Low'))  return $hit; }
+    if ($next && $next['hl_type'] === 'H') { if ($hit = $checkSlack($next, 'High')) return $hit; }
+    if ($next && $next['hl_type'] === 'L') { if ($hit = $checkSlack($next, 'Low'))  return $hit; }
+
+    // If not in slack, classify by direction
+    if ($prev && $next) {
+        $prevT = new \DateTime($prev['t_utc'], new \DateTimeZone('UTC'));
+        $nextT = new \DateTime($next['t_utc'], new \DateTimeZone('UTC'));
+        $midT  = (new \DateTime('@' . (int)(($prevT->getTimestamp() + $nextT->getTimestamp())/2)))->setTimezone(new \DateTimeZone('UTC'));
+
+        // Incoming if Low → High, Outgoing if High → Low
+        if ($prev['hl_type'] === 'L' && $next['hl_type'] === 'H') {
+            $state = 'Incoming';
+            $code  = 'IN';
+            $mLabel = 'M+'; // Mid → High
+        } elseif ($prev['hl_type'] === 'H' && $next['hl_type'] === 'L') {
+            $state = 'Outgoing';
+            $code  = 'OUT';
+            $mLabel = 'M-'; // Mid → Low
+        } else {
+            $state = null; $code = null; $mLabel = null;
+        }
+
+        return [
+            'state'        => $state,
+            'state_code'   => $code,
+            'prev'         => $prev,
+            'next'         => $next,
+            'mid_utc'      => $midT->format('Y-m-d H:i:00'),
+            'mid_label'    => $mLabel,
+            'slack_minutes'=> $slackMin,
+        ];
+    }
+
+    // Fallback (one side missing): unknown
+    return ['state' => null];
+}
+
+
 }
