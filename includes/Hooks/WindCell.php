@@ -18,7 +18,7 @@ final class WindCell
         if ($card === '&mdash;') {
             return "{$spd} kt ({$deg})";
         }
-        return "{$card} @ {$spd} kt ({$deg})";
+        return "{$card} ({$deg}) @ {$spd} kt";
     }
 
     /**

@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Legenda\NormalSurf\Hooks;
@@ -13,6 +14,9 @@ use Legenda\NormalSurf\Helpers\Format;
 
 final class TideCell
 {
+    private const ACCEPT_WINDOW_MIN = 30; // ±30 min anchors to recent/ongoing peak
+    private const NOW_THRESHOLD_MIN = 2;
+
     public function __construct(
         private PDO $pdo,
         private TidePhase $phase = new TidePhase(),
@@ -29,7 +33,7 @@ final class TideCell
             'H'  => 'High',
             'L'  => 'Low',
             'IN' => 'Incoming',
-            'OUT'=> 'Outgoing',
+            'OUT' => 'Outgoing',
             default => '—',
         };
     }
@@ -77,56 +81,52 @@ final class TideCell
      *   - "Mid+ in 1:05 (4:20 PM)"
      */
 public function prefCellFromSelectorRow(
-        array $row,
-        string $nowUtc,
-        string $tz,
-        string $mode = 'now'
-    ): string {
-        // detect the best available code + time
-        $code = $row['phase_code']
-            ?? $row['tide']
-            ?? $row['next_pref']
-            ?? $row['next_marker']
-            ?? null;
+    array $row,
+    string $nowUtc,
+    string $tz,
+    string $mode = 'now'
+): string {
+    // Label
+    $code = $row['phase_code']
+        ?? $row['tide']
+        ?? $row['next_pref']
+        ?? $row['next_marker']
+        ?? null;
+    if ($code === null) return '—';
+    $label = self::humanize(self::normalizeCode((string)$code));
 
-        $whenUtc = $row['phase_time_utc']
-            ?? $row['next_pref_utc']
-            ?? $row['next_marker_utc']
-            ?? null;
+    // **Lock** the displayed time to one source (do NOT switch it later)
+    // Rule: show phase_time_utc if provided; else next_pref_utc; else next_marker_utc.
+    $displayUtc = $row['phase_time_utc']
+        ?? $row['next_pref_utc']
+        ?? $row['next_marker_utc']
+        ?? null;
 
-        if ($code === null && $whenUtc === null) return '—';
+    if ($displayUtc === null) return $label;
 
-        $norm  = self::normalizeCode((string)$code);
-        $label = self::humanize($norm);
-
-        // LATER/TOMORROW: always render "<Label> @ <local time>" (no countdown)
-        if ($mode !== 'now') {
-            return $whenUtc ? ($label . ' @ ' . Format::localHm((string)$whenUtc, $tz)) : $label;
-        }
-
-        // NOW mode (unchanged behavior)
-        if ($whenUtc === null && !isset($row['closest_pref_delta_min'])) {
-            return $label;
-        }
-
-        // compute minutes until whenUtc (or honor provided delta)
-        $mins = null;
-        if (isset($row['closest_pref_delta_min']) && is_numeric($row['closest_pref_delta_min'])) {
-            $mins = max(0, (int)$row['closest_pref_delta_min']);
-        } elseif ($whenUtc !== null) {
-            $now  = new DateTime($nowUtc, new DateTimeZone('UTC'));
-            $when = new DateTime((string)$whenUtc, new DateTimeZone('UTC'));
-            $mins = max(0, (int) floor(($when->getTimestamp() - $now->getTimestamp()) / 60));
-        }
-
-        if ($mins === null) {
-            return $whenUtc ? ($label . ' @ ' . Format::localHm((string)$whenUtc, $tz)) : $label;
-        }
-        if ($mins === 0) {
-            return $label . ' now';
-        }
-        return sprintf('%s in %s (%s)', $label, Format::minutesToHm($mins), Format::localHm((string)$whenUtc, $tz));
+    // LATER/TOMORROW: absolute only
+    if ($mode !== 'now') {
+        return $label . ' @ ' . \Legenda\NormalSurf\Helpers\Format::localHm($displayUtc, $tz);
     }
+
+    // NOW: compute signed delta from the **same** timestamp we display
+    $now    = new \DateTime($nowUtc, new \DateTimeZone('UTC'));
+    $target = new \DateTime($displayUtc, new \DateTimeZone('UTC'));
+    $deltaMin = (int) round(($target->getTimestamp() - $now->getTimestamp()) / 60);
+    $timeLabel = \Legenda\NormalSurf\Helpers\Format::localHm($displayUtc, $tz);
+
+    // Relative phrase
+    $abs = abs($deltaMin);
+    if ($abs <= 2) {
+        $when = 'now';
+    } elseif ($deltaMin > 0) {
+        $when = 'in ' . \Legenda\NormalSurf\Helpers\Format::minutesToHm($deltaMin);
+    } else {
+        $when = \Legenda\NormalSurf\Helpers\Format::minutesToHm($abs) . ' ago';
+    }
+
+    return sprintf('%s %s (%s)', $label, $when, $timeLabel);
+}
 
     // ─────────────────────────────────────────────────────────────
     // Helpers
@@ -162,12 +162,11 @@ public function prefCellFromSelectorRow(
     }
 
     public function hlAtLabel(string $hlType, string $tideUtc, string $tz = 'America/New_York'): string
-{
-    $type = ($hlType === 'H') ? 'High' : 'Low';
-    $dt = new \DateTime($tideUtc, new \DateTimeZone('UTC'));
-    $dt->setTimezone(new \DateTimeZone($tz));
-    // 12-hour, lowercase am/pm per your “...at 0:00AM/PM” requirement
-    return $type . ' at ' . $dt->format('g:ia');
-}
-
+    {
+        $type = ($hlType === 'H') ? 'High' : 'Low';
+        $dt = new \DateTime($tideUtc, new \DateTimeZone('UTC'));
+        $dt->setTimezone(new \DateTimeZone($tz));
+        // 12-hour, lowercase am/pm per your “...at 0:00AM/PM” requirement
+        return $type . ' at ' . $dt->format('g:ia');
+    }
 }

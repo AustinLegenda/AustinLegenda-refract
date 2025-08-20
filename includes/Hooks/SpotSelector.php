@@ -12,6 +12,7 @@ use Legenda\NormalSurf\Helpers\Maths;
 use Legenda\NormalSurf\Utilities\TidePreference;
 use Legenda\NormalSurf\Utilities\TidePhase;
 use Legenda\NormalSurf\Utilities\WavePreference;
+use Legenda\NormalSurf\Utilities\WindPreference;
 use Legenda\NormalSurf\Repositories\StationRepo;
 
 final class SpotSelector
@@ -22,6 +23,19 @@ final class SpotSelector
     {
         $this->tidePrefs = $tidePrefs ?? new TidePreference(new TidePhase());
     }
+
+    /** Return true if a UTC timestamp falls in the disallowed local window (21:30–04:30). */
+    private function isLocalDisallowed(string $utcTs, string $tz = 'America/New_York'): bool
+    {
+        $dt = new \DateTime($utcTs, new \DateTimeZone('UTC'));
+        $dt->setTimezone(new \DateTimeZone($tz));
+        // HHMM as integer for easy comparison (e.g., 21:45 -> 2145)
+        $hhmm = (int)$dt->format('Hi');
+
+        // Window crosses midnight: [21:30, 24:00) ∪ [00:00, 04:30)
+        return ($hhmm >= 2130) || ($hhmm < 430);
+    }
+
 
     public function select(PDO $pdo, array $data1, array $data2): array
     {
@@ -50,6 +64,9 @@ final class SpotSelector
 
         // canonical UTC now
         $nowUtc = (new DateTime('now', new DateTimeZone('UTC')))->format('Y-m-d H:i:00');
+        if ($this->isLocalDisallowed($nowUtc, 'America/New_York')) {
+            return []; // entirely excluded in this window
+        }
 
         foreach ($spots as $spot) {
             // wave gate
@@ -70,6 +87,10 @@ final class SpotSelector
             $listBucket = $tideOk ? '1' : '2';
 
             $listBucket = (!empty($tp['ok']) && $hasPrefs) ? '1' : '2';
+
+            //wind
+            $windKey = WindPreference::keyForSpot($spot, $c12, $c17);
+            $wObs = WindPreference::realtimeForKey($pdo, $windKey, $spot);
 
 
             $rows[] = [
@@ -102,7 +123,7 @@ final class SpotSelector
 
                 // decision
                 'list_bucket' => $listBucket,
-                'wind'        => '—', // placeholder            
+                'wind' => $wObs['label'] ?? '—',
             ];
         }
 
@@ -152,10 +173,18 @@ final class SpotSelector
                 ->modify('+' . (int)$delta . ' minutes')
                 ->format('Y-m-d H:i:00');
 
+            // Hard gate by local time
+            if ($this->isLocalDisallowed($targetUtc, 'America/New_York')) {
+                continue; // skip this candidate
+            }
+
             $WF = WavePreference::forecastForSpot($pdo, $spot, $targetUtc, $coords, ['41112', '41117']);
             if (!$WF['ok']) {
                 continue;
             }
+
+            $windKey = WindPreference::keyForSpot($spot, $coords['41112'], $coords['41117']);
+            $wFcst = WindPreference::forecastForKeyAt($pdo, $windKey, $targetUtc, $spot);
 
             $tideCode = $tp['next_pref'] ?? $tp['closest_pref'] ?? $tp['next_marker'] ?? null;
             if (!TidePreference::allowPhase($spot, $tideCode)) {
@@ -175,10 +204,11 @@ final class SpotSelector
                 'per_s'     => $WF['per_s'],
                 'dir_deg'   => $WF['dir_deg'],
                 'tide'                  => $tideCode ?? '—',
-                'wind'                  => '—',
+                'wind' => $wFcst['label'] ?? '—',
                 'phase_code'            => $tideCode,
                 'phase_time_utc'        => $tp['next_pref_utc'] ?? $tp['next_marker_utc'] ?? null,
                 'closest_pref_delta_min' => $tp['closest_pref_delta_min'] ?? null,
+
             ];
 
             if (!isset($bestByName[$name]) || $score < $bestByName[$name]['score']) {
@@ -229,10 +259,18 @@ final class SpotSelector
                 ->modify('+' . (int)$delta . ' minutes')
                 ->format('Y-m-d H:i:00');
 
+            // Hard gate by local time
+            if ($this->isLocalDisallowed($targetUtc, 'America/New_York')) {
+                continue; // skip this candidate
+            }
+
             $WF = WavePreference::forecastForSpot($pdo, $spot, $targetUtc, $coords, ['41112', '41117']);
             if (!$WF['ok']) {
                 continue;
             }
+
+            $windKey = WindPreference::keyForSpot($spot, $coords['41112'], $coords['41117']);
+            $wFcst = WindPreference::forecastForKeyAt($pdo, $windKey, $targetUtc, $spot);
 
             $tideCode = $tp['next_pref'] ?? $tp['closest_pref'] ?? $tp['next_marker'] ?? null;
             if (!TidePreference::allowPhase($spot, $tideCode)) {
@@ -252,7 +290,7 @@ final class SpotSelector
                 'per_s'     => $WF['per_s'],
                 'dir_deg'   => $WF['dir_deg'],
                 'tide'                  => $tideCode ?? '—',
-                'wind'                  => '—',
+                'wind' => $wFcst['label'] ?? '—',
                 'phase_code'     => $tideCode,
                 'phase_time_utc' => $tp['next_pref_utc'] ?? $tp['next_marker_utc'] ?? null,
                 'closest_pref_delta_min' => $tp['closest_pref_delta_min'] ?? null,

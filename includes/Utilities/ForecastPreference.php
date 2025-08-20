@@ -8,10 +8,6 @@ use DateTime;
 use DateTimeZone;
 use Legenda\NormalSurf\Repositories\TideRepo;
 
-/**
- * ForecastPreference: pick forecast rows at tide HL anchor times.
- * Not selecting spots. Not formatting. Just returns DTOs.
- */
 final class ForecastPreference
 {
     public static function hlAnchoredForecastForStation(
@@ -22,7 +18,8 @@ final class ForecastPreference
         array $coordsMany,
         array $stationIds,
         int $hours = 72,
-        int $maxRows = 12
+        int $maxRows = 12,
+        ?string $windKey = null          // <— NEW
     ): array {
         $anchors = self::hlAnchors($pdo, $tideStationId, $startUtc, $hours, $maxRows);
         if (!$anchors) return [];
@@ -37,25 +34,37 @@ final class ForecastPreference
         $out = [];
         foreach ($anchors as $a) {
             $tUtc = (string)$a['t_utc'];
+
+            // waves (existing)
             $WF = WavePreference::forecastForSpot($pdo, $place, $tUtc, $coordsMany, $stationIds);
             if (empty($WF['ok'])) {
                 continue; // skip if forecast sampling failed at that instant
             }
 
+            // wind (new, optional)
+            $windDir = null; $windKt = null;
+            if ($windKey) {
+                $w = WindPreference::forecastForKeyAt($pdo, $windKey, $tUtc, $place);
+                if (!empty($w)) {
+                    $windDir = $w['dir'] ?? null;
+                    $windKt  = $w['kt']  ?? null;
+                }
+            }
+
             $out[] = [
-                't_utc'  => $tUtc,
-                'hl_type'=> (string)$a['type'],      // 'H' | 'L'
-                'hs_m'   => (float)$WF['hs_m'],
-                'per_s'  => (float)$WF['per_s'],
-                'dir_deg'=> (float)$WF['dir_deg'],
+                't_utc'    => $tUtc,
+                'hl_type'  => (string)$a['type'],      // 'H' | 'L'
+                'hs_m'     => (float)$WF['hs_m'],
+                'per_s'    => (float)$WF['per_s'],
+                'dir_deg'  => (float)$WF['dir_deg'],
+                // NEW:
+                'wind_dir' => $windDir,                // int|null
+                'wind_kt'  => $windKt,                 // float|null
             ];
         }
         return $out;
     }
 
-    /**
-     * Yield upcoming HL anchors from TideRepo within a horizon (UTC).
-     */
     public static function hlAnchors(
         PDO $pdo,
         string $tideStationId,

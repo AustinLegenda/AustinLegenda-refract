@@ -228,21 +228,19 @@ $vm72 = $report->forecast72hView(); ?>
   <?php foreach (($vm72['stations'] ?? []) as $st): ?>
     <table>
       <thead>
-        <tr><th colspan="3"><?= htmlspecialchars($st['label']) ?></th></tr>
-        <tr><th>When</th><th>Wave</th><th>Tide</th></tr>
+        <tr><th colspan="4"><?= htmlspecialchars($st['label']) ?></th></tr>
+  <tr><th>When</th><th>Wave</th><th>Tide</th><th>Wind</th></tr>
       </thead>
-      <tbody>
-        <?php if (!empty($st['rows'])): foreach ($st['rows'] as $r): ?>
-          <tr>
-            <td><?= htmlspecialchars($r['when']) ?></td>
-            <td><?= $r['wave_cell'] ?></td>
-            <td><?= htmlspecialchars($r['tide']) ?></td>
-          </tr>
-        <?php endforeach; else: ?>
-          <tr><td colspan="3"><em>No tide-anchored forecast rows.</em></td></tr>
-        <?php endif; ?>
-      </tbody>
-    </table>
+<tbody>
+  <?php foreach ($st['rows'] as $r): ?>
+    <tr>
+      <td><?= htmlspecialchars($r['when']) ?></td>
+      <td><?= $r['wave_cell'] ?></td>
+      <td><?= htmlspecialchars($r['tide']) ?></td>
+      <td><?= htmlspecialchars($r['wind']) ?></td>
+    </tr>
+  <?php endforeach; ?>
+</tbody>    </table>
   <?php endforeach; ?>
 </section></body>
 

@@ -280,16 +280,9 @@ final class Report
     // ——————————————————————————————————————————————————————————
     // Forecast
     // ——————————————————————————————————————————————————————————
-    private static function localLongWhen(string $utc, string $tz): string
-    {
-        $dt = new \DateTime($utc, new \DateTimeZone('UTC'));
-        $dt->setTimezone(new \DateTimeZone($tz));
-        return $dt->format('l, F j, g:i A'); // Tuesday, August 19, 5:21 PM
-    }
-
     public function forecast72hView(string $tz = 'America/New_York'): array
     {
-        $nowUtc = \Legenda\NormalSurf\Helpers\Format::UTC_time();
+        $nowUtc = Format::UTC_time();
 
         // need base station coords for the zones + interpolation
         $c12 = $this->stations->coords('41112');
@@ -302,16 +295,22 @@ final class Report
                 'label'        => 'St. Marys Entrance',
                 'coord'        => $c12,
                 'tide_station' => self::TIDE_STATION_BY_KEY['41112'] ?? null,
+                'wind_key'     => '41112',        // <— NEW
             ],
             'median' => [
                 'label'        => 'St. Johns Entrance*',
-                'coord'        => ['lat' => ($c12['lat'] + $c17['lat']) / 2, 'lon' => ($c12['lon'] + $c17['lon']) / 2],
+                'coord'        => [
+                    'lat' => ($c12['lat'] + $c17['lat']) / 2,
+                    'lon' => ($c12['lon'] + $c17['lon']) / 2
+                ],
                 'tide_station' => self::TIDE_STATION_BY_KEY['median'] ?? null,
+                'wind_key'     => 'median',       // <— NEW
             ],
             '41117'  => [
                 'label'        => 'St. Augustine',
                 'coord'        => $c17,
                 'tide_station' => self::TIDE_STATION_BY_KEY['41117'] ?? null,
+                'wind_key'     => '41117',        // <— NEW
             ],
         ];
 
@@ -327,19 +326,27 @@ final class Report
                 $coordsMany,
                 ['41112', '41117'],
                 72,
-                12
+                12,
+                $z['wind_key'] ?? null   // <— pass wind key
             );
 
             $rows = [];
             foreach ($samples as $s) {
+                // format wind label (can be '—' if nulls)
+                $windLabel = WindCell::format(
+                    isset($s['wind_dir']) ? (int)$s['wind_dir'] : null,
+                    isset($s['wind_kt'])  ? (float)$s['wind_kt']  : null
+                );
+
                 $rows[] = [
-                    'when'      => self::localLongWhen($s['t_utc'], $tz),
+                    'when' => Format::toLocalTime($s['t_utc'], $tz),
                     'wave_cell' => $this->waveCell->cellFromDTO([
                         'hs_m'    => $s['hs_m'],
                         'per_s'   => $s['per_s'],
                         'dir_deg' => $s['dir_deg'],
                     ]),
                     'tide'      => ($s['hl_type'] === 'H') ? 'High' : 'Low',
+                    'wind'      => $windLabel,  // <— NEW
                 ];
             }
 
