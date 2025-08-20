@@ -27,24 +27,6 @@ class ComposerStaticInit7839f354cb00f17b17f856e8af563e1e
 
     public static $classMap = array (
         'Composer\\InstalledVersions' => __DIR__ . '/..' . '/composer/InstalledVersions.php',
-        'Legenda\\NormalSurf\\API\\NoaaRequest' => __DIR__ . '/../..' . '/includes/API/NoaaRequest.php',
-        'Legenda\\NormalSurf\\BatchProcessing\\SpectralDataParser' => __DIR__ . '/../..' . '/includes/BatchProcessing/SpectralDataParser.php',
-        'Legenda\\NormalSurf\\Helpers\\Format' => __DIR__ . '/../..' . '/includes/Helpers/Format.php',
-        'Legenda\\NormalSurf\\Helpers\\Maths' => __DIR__ . '/../..' . '/includes/Helpers/Maths.php',
-        'Legenda\\NormalSurf\\Hooks\\LoadData' => __DIR__ . '/../..' . '/includes/Hooks/LoadData.php',
-        'Legenda\\NormalSurf\\Hooks\\SpotSelector' => __DIR__ . '/../..' . '/includes/Hooks/SpotSelector.php',
-        'Legenda\\NormalSurf\\Hooks\\TideCell' => __DIR__ . '/../..' . '/includes/Hooks/TideCell.php',
-        'Legenda\\NormalSurf\\Hooks\\WaveCell' => __DIR__ . '/../..' . '/includes/Hooks/WaveCell.php',
-        'Legenda\\NormalSurf\\Repositories\\StationRepo' => __DIR__ . '/../..' . '/includes/Repositories/StationRepo.php',
-        'Legenda\\NormalSurf\\Repositories\\TideRepo' => __DIR__ . '/../..' . '/includes/Repositories/TideRepo.php',
-        'Legenda\\NormalSurf\\Repositories\\WaveBuoyRepo' => __DIR__ . '/../..' . '/includes/Repositories/WaveBuoyRepo.php',
-        'Legenda\\NormalSurf\\Repositories\\WaveForecastRepo' => __DIR__ . '/../..' . '/includes/Repositories/WaveForecastRepo.php',
-        'Legenda\\NormalSurf\\Templates\\Report' => __DIR__ . '/../..' . '/Templates/Report.php',
-        'Legenda\\NormalSurf\\Utilities\\Interpolator' => __DIR__ . '/../..' . '/includes/Utilities/Interpolator.php',
-        'Legenda\\NormalSurf\\Utilities\\TidePhase' => __DIR__ . '/../..' . '/includes/Utilities/TidePhase.php',
-        'Legenda\\NormalSurf\\Utilities\\TidePreference' => __DIR__ . '/../..' . '/includes/Utilities/TidePreference.php',
-        'Legenda\\NormalSurf\\Utilities\\WavePeriod' => __DIR__ . '/../..' . '/includes/Utilities/WavePeriod.php',
-        'Legenda\\NormalSurf\\Utilities\\WavePreference' => __DIR__ . '/../..' . '/includes/Utilities/WavePreference.php',
     );
 
     public static function getInitializer(ClassLoader $loader)

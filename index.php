@@ -16,7 +16,7 @@ $vmNow   = $report->whereToSurfNowView();
 $vmLater = $report->whereToSurfLaterTodayView();         
 $vmTom   = $report->whereToSurfTomorrowView();
 $vm72 = $report->forecast72hView(); ?>
-?>
+
 <!DOCTYPE html>
 <html lang="en">
 

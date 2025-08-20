@@ -12,10 +12,13 @@ use Legenda\NormalSurf\Repositories\StationRepo;
 use Legenda\NormalSurf\Hooks\LoadData;
 use Legenda\NormalSurf\Hooks\WaveCell;
 use Legenda\NormalSurf\Hooks\TideCell;
+use Legenda\NormalSurf\Hooks\WindCell;
 use Legenda\NormalSurf\Hooks\SpotSelector;
 use Legenda\NormalSurf\Helpers\Format;
 use Legenda\NormalSurf\Utilities\WavePreference;
 use Legenda\NormalSurf\Utilities\ForecastPreference;
+
+
 
 
 /**
@@ -38,6 +41,13 @@ final class Report
         '41117'  => '8720587',
     ];
 
+    private const WIND_STATION_BY_KEY = [
+        '41112'  => '8720030', // Fernandina
+        'median' => '8720218', // Mayport / St. Johns Entrance
+        '41117'  => 'SAUF1', // St. Augustine
+    ];
+
+
     public function __construct(?PDO $pdo = null)
     {
         if ($pdo instanceof PDO) {
@@ -58,6 +68,13 @@ final class Report
         $k = (string)$key;
         return self::TIDE_STATION_BY_KEY[$k] ?? null;
     }
+
+    private static function windStationCodeForKey(int|string $key): ?string
+    {
+        $k = (string)$key;
+        return self::WIND_STATION_BY_KEY[$k] ?? null;
+    }
+
 
     /** Mean of shared numeric columns for a “median” buoy row. */
     private function midpoint(array $a, array $b): array
@@ -115,8 +132,20 @@ final class Report
             $rows[$k]['tide_next_at']  = $info['row_label'] ?? '—';
             $rows[$k]['_next_minutes'] = $info['minutes']   ?? null;
 
-            // Wind: wire later
-            $rows[$k]['wind_label'] = '—';
+            $wcode = self::windStationCodeForKey($k);
+            if ($wcode) {
+                $w = LoadData::winds_latest($this->pdo, $wcode);
+                if ($w) {
+                    $rows[$k]['wind_label'] = WindCell::format(
+                        isset($w['WDIR']) ? (int)$w['WDIR'] : null,
+                        isset($w['WSPD_kt']) ? (float)$w['WSPD_kt'] : null
+                    );
+                } else {
+                    $rows[$k]['wind_label'] = '—';
+                }
+            } else {
+                $rows[$k]['wind_label'] = '—';
+            }
         }
 
         // Countdown header: prefer median else min flank minutes

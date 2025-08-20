@@ -6,6 +6,7 @@ use Legenda\NormalSurf\BatchProcessing\SpectralDataParser;
 use Legenda\NormalSurf\Repositories\WaveBuoyRepo;
 use Legenda\NormalSurf\Repositories\TideRepo;
 use Legenda\NormalSurf\Repositories\WaveForecastRepo;
+use Legenda\NormalSurf\Repositories\WindRepo;
 
 use PDO;
 
@@ -90,7 +91,7 @@ class LoadData
     }
 
     //wave forecast
-        // ---- WAVES (GFS-Wave JSON → per-station tables like waves_41112) ----
+    // ---- WAVES (GFS-Wave JSON → per-station tables like waves_41112) ----
 
     /**
      * Import a single wave JSON file (e.g., .data/wave-forecast/wave_point_41112.json).
@@ -117,6 +118,35 @@ class LoadData
         return WaveForecastRepo::importDirectory($pdo, $dirPath, $localTz);
     }
 
+    // Import/refresh wind for many stations (e.g., FRDF1,MYPF1,SAUF1)
+    public static function winds_refresh(PDO $pdo, array $stationCodes): array
+    {
+        return WindRepo::refreshMany($pdo, $stationCodes);
+    }
+
+    // Convenience: latest wind for a station
+    public static function winds_latest(PDO $pdo, string $stationCode): ?array
+    {
+        return WindRepo::latest($pdo, $stationCode);
+    }
+
+    // Convenience: explicit range
+    public static function winds_range(PDO $pdo, string $stationCode, string $startUtc, string $endUtc, int $limit = 500): array
+    {
+        return WindRepo::range($pdo, $stationCode, $startUtc, $endUtc, $limit);
+    }
+
+    public static function winds_prev(PDO $pdo, string $stationCode, string $nowUtc): ?array
+    {
+        return WindRepo::prev($pdo, $stationCode, $nowUtc);
+    }
+
+    public static function winds_next(PDO $pdo, string $stationCode, string $nowUtc): ?array
+    {
+        return WindRepo::next($pdo, $stationCode, $nowUtc);
+    }
+
+
     /**
      * Convenience: next N rows from now (UTC) for a station id like '41112'.
      */
@@ -140,5 +170,4 @@ class LoadData
     {
         return WaveForecastRepo::getRange($pdo, $stationId, $startUtc, $endUtc, $limit);
     }
-
 }
