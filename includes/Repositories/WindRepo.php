@@ -37,18 +37,20 @@ final class WindRepo
     // Insert helpers
     // ------------------------------
 
-    public static function insertCoOpsRows(PDO $pdo, string $stationCode, array $rows): int
+    private static function insertRows(PDO $pdo, string $stationCode, array $rows): int
     {
         $table = self::table($stationCode);
         self::ensureTable($pdo, $table);
 
-        if (empty($rows)) return 0;
+        if (empty($rows)) {
+            return 0;
+        }
 
         $stmt = $pdo->prepare("
             INSERT INTO `{$table}` (`ts`, `WDIR`, `WSPD_ms`, `WSPD_kt`)
             VALUES (:ts, :wdir, :ms, :kt)
             ON DUPLICATE KEY UPDATE
-              `WDIR` = VALUES(`WDIR`),
+              `WDIR`    = VALUES(`WDIR`),
               `WSPD_ms` = VALUES(`WSPD_ms`),
               `WSPD_kt` = VALUES(`WSPD_kt`)
         ");
@@ -61,33 +63,7 @@ final class WindRepo
                 ':kt'   => $r['WSPD_kt'],
             ]);
         }
-        return count($rows);
-    }
 
-    public static function insertNDBCRows(PDO $pdo, string $stationCode, array $rows): int
-    {
-        $table = self::table($stationCode);
-        self::ensureTable($pdo, $table);
-
-        if (empty($rows)) return 0;
-
-        $stmt = $pdo->prepare("
-            INSERT INTO `{$table}` (`ts`, `WDIR`, `WSPD_ms`, `WSPD_kt`)
-            VALUES (:ts, :wdir, :ms, :kt)
-            ON DUPLICATE KEY UPDATE
-              `WDIR` = VALUES(`WDIR`),
-              `WSPD_ms` = VALUES(`WSPD_ms`),
-              `WSPD_kt` = VALUES(`WSPD_kt`)
-        ");
-
-        foreach ($rows as $r) {
-            $stmt->execute([
-                ':ts'   => $r['ts'],
-                ':wdir' => $r['WDIR'],
-                ':ms'   => $r['WSPD_ms'],
-                ':kt'   => $r['WSPD_kt'],
-            ]);
-        }
         return count($rows);
     }
 
@@ -98,39 +74,38 @@ final class WindRepo
     public static function refreshCoOps(PDO $pdo, string $stationCode): int
     {
         $rows = CoOpsWindStationsRequest::fetch_rows($stationCode);
-        return self::insertCoOpsRows($pdo, $stationCode, $rows);
+        return self::insertRows($pdo, $stationCode, $rows);
     }
 
     public static function refreshNDBC(PDO $pdo, string $stationCode): int
     {
         $rows = NDBCWindStationsRequest::fetch_rows($stationCode);
-        return self::insertNDBCRows($pdo, $stationCode, $rows);
+        return self::insertRows($pdo, $stationCode, $rows);
     }
 
     // ------------------
-    // Batch
+    // Batch (auto-detect)
     // ------------------
 
- public static function refreshMany(PDO $pdo, array $stationCodes): array
-{
-    $out = [];
-    foreach ($stationCodes as $code) {
-        try {
-            if (ctype_digit($code)) {
-                // All numeric → CO-OPS
-                $out[$code] = self::refreshCoOps($pdo, $code);
-            } else {
-                // Alpha → NDBC
-                $out[$code] = self::refreshNDBC($pdo, $code);
+    public static function refreshMany(PDO $pdo, array $stationCodes): array
+    {
+        $out = [];
+        foreach ($stationCodes as $code) {
+            try {
+                if (ctype_digit($code)) {
+                    // numeric → CO-OPS
+                    $out[$code] = self::refreshCoOps($pdo, $code);
+                } else {
+                    // alpha → NDBC
+                    $out[$code] = self::refreshNDBC($pdo, $code);
+                }
+            } catch (Exception $e) {
+                error_log("WindRepo refresh failed for {$code}: " . $e->getMessage());
+                $out[$code] = 0;
             }
-        } catch (Exception $e) {
-            error_log("WindRepo refresh failed for {$code}: " . $e->getMessage());
-            $out[$code] = 0;
         }
+        return $out;
     }
-    return $out;
-}
-
 
     // ------------------
     // Read convenience
@@ -140,7 +115,9 @@ final class WindRepo
     {
         $table = self::table($stationCode);
         self::ensureTable($pdo, $table);
-        $sql = "SELECT ts, WDIR, WSPD_ms, WSPD_kt FROM `{$table}` ORDER BY ts DESC LIMIT 1";
+        $sql = "SELECT ts, WDIR, WSPD_ms, WSPD_kt 
+                FROM `{$table}` 
+                ORDER BY ts DESC LIMIT 1";
         $row = $pdo->query($sql)->fetch(PDO::FETCH_ASSOC);
         return $row ?: null;
     }
@@ -148,9 +125,12 @@ final class WindRepo
     public static function prev(PDO $pdo, string $stationCode, string $utcTs): ?array
     {
         $table = self::table($stationCode);
-        $stmt = $pdo->prepare("SELECT ts, WDIR, WSPD_ms, WSPD_kt
-                               FROM `{$table}` WHERE ts < :ts
-                               ORDER BY ts DESC LIMIT 1");
+        $stmt = $pdo->prepare("
+            SELECT ts, WDIR, WSPD_ms, WSPD_kt
+            FROM `{$table}`
+            WHERE ts < :ts
+            ORDER BY ts DESC LIMIT 1
+        ");
         $stmt->execute([':ts' => $utcTs]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         return $row ?: null;
@@ -159,9 +139,12 @@ final class WindRepo
     public static function next(PDO $pdo, string $stationCode, string $utcTs): ?array
     {
         $table = self::table($stationCode);
-        $stmt = $pdo->prepare("SELECT ts, WDIR, WSPD_ms, WSPD_kt
-                               FROM `{$table}` WHERE ts > :ts
-                               ORDER BY ts ASC LIMIT 1");
+        $stmt = $pdo->prepare("
+            SELECT ts, WDIR, WSPD_ms, WSPD_kt
+            FROM `{$table}`
+            WHERE ts > :ts
+            ORDER BY ts ASC LIMIT 1
+        ");
         $stmt->execute([':ts' => $utcTs]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         return $row ?: null;
@@ -170,11 +153,13 @@ final class WindRepo
     public static function range(PDO $pdo, string $stationCode, string $startUtc, string $endUtc, int $limit = 500): array
     {
         $table = self::table($stationCode);
-        $stmt = $pdo->prepare("SELECT ts, WDIR, WSPD_ms, WSPD_kt
-                               FROM `{$table}`
-                               WHERE ts BETWEEN :start AND :end
-                               ORDER BY ts ASC
-                               LIMIT {$limit}");
+        $stmt = $pdo->prepare("
+            SELECT ts, WDIR, WSPD_ms, WSPD_kt
+            FROM `{$table}`
+            WHERE ts BETWEEN :start AND :end
+            ORDER BY ts ASC
+            LIMIT {$limit}
+        ");
         $stmt->execute([':start' => $startUtc, ':end' => $endUtc]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }

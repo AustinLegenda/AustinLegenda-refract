@@ -7,6 +7,7 @@ use Legenda\NormalSurf\Repositories\WaveBuoyRepo;
 use Legenda\NormalSurf\Repositories\TideRepo;
 use Legenda\NormalSurf\Repositories\WaveForecastRepo;
 use Legenda\NormalSurf\Repositories\WindRepo;
+ use Legenda\NormalSurf\Repositories\WindForecastRepo;
 
 use PDO;
 
@@ -169,5 +170,23 @@ class LoadData
     public static function waves_range(PDO $pdo, string $stationId, string $startUtc, string $endUtc, int $limit = 500): array
     {
         return WaveForecastRepo::getRange($pdo, $stationId, $startUtc, $endUtc, $limit);
+    }
+
+   
+
+    public static function winds_fcst_refresh(PDO $pdo, array $defs): array
+    {
+        // $defs: [['key'=>'41112','office'=>'JAX','x'=>71,'y'=>80], ...]
+        return WindForecastRepo::refreshMany($pdo, $defs);
+    }
+
+    public static function winds_fcst_latest(PDO $pdo, string $key): ?array
+    {
+        return WindForecastRepo::latest($pdo, $key);
+    }
+
+    public static function winds_fcst_range(PDO $pdo, string $key, string $startUtc, string $endUtc, int $limit = 2000): array
+    {
+        return WindForecastRepo::range($pdo, $key, $startUtc, $endUtc, $limit);
     }
 }
