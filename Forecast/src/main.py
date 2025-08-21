@@ -5,30 +5,6 @@ import os, json, datetime as dt
 from typing import List, Tuple, Dict
 
 import sys, os, site
-
-# fallback: try numpy; if missing, use our tiny shim
-try:
-    import numpy as np
-except Exception:
-    from np_min import *  # exposes functions directly
-    class _NP:
-        array = array
-        asarray = asarray
-        mean = mean
-        sqrt = sqrt
-        sin = sin
-        cos = cos
-        pi = pi
-        linspace = linspace
-        arange = arange
-        interp = interp
-        argmax = argmax
-    np = _NP()
-
-
-
-
-import numpy as np
 import pandas as pd
 import xarray as xr
 import requests
@@ -45,6 +21,7 @@ except Exception:
     fcntl = None
 
 from nomads import latest_available_run, gfswave_file_name
+
 
 # ---------------- Stations (same run for all) ----------------
 POINTS: Dict[str, Dict[str, float]] = {
@@ -144,11 +121,11 @@ def dataset_to_payload(
     if "PERPW" in ds: rename_map["PERPW"] = "Per_s"
     if rename_map: ds = ds.rename(rename_map)
 
-    # Optional rounding
+    # Optional rounding (no numpy)
     if round_dec is not None and round_dec >= 0:
         for v in ds.data_vars:
-            if np.issubdtype(ds[v].dtype, np.number):
-                ds[v].data = np.round(ds[v].data, round_dec)
+            if pd.api.types.is_numeric_dtype(ds[v].dtype):
+                ds[v].data = ds[v].data.round(round_dec)
 
     df = ds.to_dataframe().reset_index()
 
@@ -167,7 +144,11 @@ def dataset_to_payload(
         records.append(rec)
 
     return {
-        "meta": {"model": "gfswave", "point": {"lat": float(lat_meta), "lon": float(lon_meta)}, "vars": vars_present},
+        "meta": {
+            "model": "gfswave",
+            "point": {"lat": float(lat_meta), "lon": float(lon_meta)},
+            "vars": vars_present
+        },
         "data": records,
     }
 
