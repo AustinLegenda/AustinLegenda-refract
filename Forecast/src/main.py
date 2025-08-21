@@ -4,6 +4,13 @@
 import os, json, datetime as dt
 from typing import List, Tuple, Dict
 
+import site, sys
+# ensure Python sees user site-packages where pip --user installed numpy
+user_site = site.getusersitepackages()
+if user_site and user_site not in sys.path:
+    sys.path.append(user_site)
+
+
 import numpy as np
 import pandas as pd
 import xarray as xr
