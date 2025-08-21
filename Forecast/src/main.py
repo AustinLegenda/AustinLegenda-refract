@@ -4,11 +4,25 @@
 import os, json, datetime as dt
 from typing import List, Tuple, Dict
 
-import site, sys
-# ensure Python sees user site-packages where pip --user installed numpy
-user_site = site.getusersitepackages()
-if user_site and user_site not in sys.path:
+import sys, os, site
+
+# Try the standard user site-packages
+try:
+    user_site = site.getusersitepackages()
+except Exception:
+    user_site = None
+
+if user_site and os.path.isdir(user_site) and user_site not in sys.path:
     sys.path.append(user_site)
+else:
+    # Fallback: explicit ~/.local path for the current Python minor version
+    v = f"{sys.version_info.major}.{sys.version_info.minor}"
+    alt = os.path.expanduser(f"~/.local/lib/python{v}/site-packages")
+    if os.path.isdir(alt) and alt not in sys.path:
+        sys.path.append(alt)
+
+import numpy as np  # should now succeed
+
 
 
 import numpy as np
