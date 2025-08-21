@@ -6,22 +6,25 @@ from typing import List, Tuple, Dict
 
 import sys, os, site
 
-# Try the standard user site-packages
+# fallback: try numpy; if missing, use our tiny shim
 try:
-    user_site = site.getusersitepackages()
+    import numpy as np
 except Exception:
-    user_site = None
+    from np_min import *  # exposes functions directly
+    class _NP:
+        array = array
+        asarray = asarray
+        mean = mean
+        sqrt = sqrt
+        sin = sin
+        cos = cos
+        pi = pi
+        linspace = linspace
+        arange = arange
+        interp = interp
+        argmax = argmax
+    np = _NP()
 
-if user_site and os.path.isdir(user_site) and user_site not in sys.path:
-    sys.path.append(user_site)
-else:
-    # Fallback: explicit ~/.local path for the current Python minor version
-    v = f"{sys.version_info.major}.{sys.version_info.minor}"
-    alt = os.path.expanduser(f"~/.local/lib/python{v}/site-packages")
-    if os.path.isdir(alt) and alt not in sys.path:
-        sys.path.append(alt)
-
-import numpy as np  # should now succeed
 
 
 
