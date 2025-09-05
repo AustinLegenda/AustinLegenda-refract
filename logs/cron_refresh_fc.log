@@ -192,3 +192,75 @@ Stack trace:
         "41117": 187
     }
 }
+{
+    "tides": "tides_8720587",
+    "waves": [
+        {
+            "file": "wave_point_41112.json",
+            "table": "waves_41112"
+        },
+        {
+            "file": "wave_point_41117.json",
+            "table": "waves_41117"
+        }
+    ],
+    "winds_fcst": {
+        "41112": 187,
+        "median": 187,
+        "41117": 187
+    }
+}
+{
+    "tides": "tides_8720587",
+    "waves": [
+        {
+            "file": "wave_point_41112.json",
+            "table": "waves_41112"
+        },
+        {
+            "file": "wave_point_41117.json",
+            "table": "waves_41117"
+        }
+    ],
+    "winds_fcst": {
+        "41112": 184,
+        "median": 184,
+        "41117": 184
+    }
+}
+{
+    "tides": "tides_8720587",
+    "waves": [
+        {
+            "file": "wave_point_41112.json",
+            "table": "waves_41112"
+        },
+        {
+            "file": "wave_point_41117.json",
+            "table": "waves_41117"
+        }
+    ],
+    "winds_fcst": {
+        "41112": 184,
+        "median": 184,
+        "41117": 184
+    }
+}
+{
+    "tides": "tides_8720587",
+    "waves": [],
+    "winds_fcst": {
+        "41112": 184,
+        "median": 184,
+        "41117": 184
+    }
+}
+{
+    "tides": "tides_8720587",
+    "waves": [],
+    "winds_fcst": {
+        "41112": 184,
+        "median": 184,
+        "41117": 184
+    }
+}
