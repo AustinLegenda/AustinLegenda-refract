@@ -32,3 +32,4 @@
 [2025-09-05T19:00:00+00:00] waves_dir missing or not a dir: /Applications/MAMP/htdocs/normal-surf/src/data/wave-forecast
 [2025-09-05T19:00:01+00:00] refresh_all OK (0.90s)
 [2025-09-05T19:15:02+00:00] refresh_all OK (1.61s)
+[2025-09-05T20:15:02+00:00] refresh_all OK (1.17s)

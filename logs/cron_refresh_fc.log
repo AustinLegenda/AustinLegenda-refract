@@ -398,3 +398,21 @@ Fatal error: Uncaught Error: Call to undefined method Legenda\NormalSurf\BatchPr
 Stack trace:
 #0 {main}
   thrown in /Applications/MAMP/htdocs/normal-surf/bin/refresh_fc.php on line 47
+{
+    "tides": "tides_8720587",
+    "waves": {
+        "files": 2,
+        "ok": 2,
+        "skip": 0,
+        "err": 0,
+        "messages": [
+            "OK wave_point_41117.json -> waves_41117 rows=41",
+            "OK wave_point_41112.json -> waves_41112 rows=41"
+        ]
+    },
+    "winds_fcst": {
+        "41112": 181,
+        "median": 181,
+        "41117": 181
+    }
+}
