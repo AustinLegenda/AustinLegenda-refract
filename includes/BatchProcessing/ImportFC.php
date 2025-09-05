@@ -15,21 +15,30 @@ use Legenda\NormalSurf\Repositories\WindForecastRepo;
 final class ImportFC
 {
     /** Create a PDO using constants from config.php */
-    public static function pdo(): PDO
-    {
-        // config.php must define DB_HOST, DB_NAME, DB_USER, DB_PASS
-        require_once \dirname(__DIR__, 2) . '/config.php';
+public static function pdo(): PDO
+{
+    require_once \dirname(__DIR__, 2) . '/config.php';
 
-        return new PDO(
-            "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=utf8mb4",
-            DB_USER,
-            DB_PASS,
-            [
-                PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
-                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-            ]
-        );
+    // Build a CLI-safe DSN that honors port/socket
+    $dsn = 'mysql:';
+    if (defined('DB_SOCKET') && DB_SOCKET) {
+        $dsn .= 'unix_socket=' . DB_SOCKET . ';';
+    } else {
+        $dsn .= 'host=' . DB_HOST . ';';
+        $dsn .= 'port=' . (defined('DB_PORT') ? DB_PORT : '3306') . ';';
     }
+    $dsn .= 'dbname=' . DB_NAME . ';charset=utf8mb4';
+
+    return new PDO(
+        $dsn,
+        DB_USER,
+        DB_PASS,
+        [
+            PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        ]
+    );
+}
 
     /** Resolve common paths used by the batch job */
     public static function paths(): array

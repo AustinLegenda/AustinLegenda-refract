@@ -137,8 +137,8 @@ class ImportCC
     /* Helpers to keep things tidy. If you don’t like helpers, inline in conn_report(). */
     private static function fetch_and_filter_station(string $station): array
     {
-        $raw   = \Legenda\NormalSurf\Repositories\WaveBuoyRepo::get_data($station);
-        $data  = \Legenda\NormalSurf\BatchProcessing\SpectralDataParser::filter($raw);
+        $raw   = WaveBuoyRepo::get_data($station);
+        $data  = SpectralDataParser::filter($raw);
         return [$data['columns'], $data['data']];
     }
 

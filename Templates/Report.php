@@ -19,8 +19,6 @@ use Legenda\NormalSurf\Utilities\WavePreference;
 use Legenda\NormalSurf\Utilities\ForecastPreference;
 
 
-
-
 /**
  * View-model builder for index.php
  * - Preferences (Wave/Tide/Wind) compute raw values upstream.
