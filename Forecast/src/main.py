@@ -1,319 +1,232 @@
 #!/usr/bin/env python3
-# Forecast/src/main.py — GFS-Wave → JSON time series per buoy (multi-station)
+# -*- coding: utf-8 -*-
 
-import os, json, datetime as dt
-from typing import List, Tuple, Dict
-
-import sys, os, site
-import pandas as pd
-import xarray as xr
-import requests
-from dotenv import load_dotenv
-
-# NEW: small adds for cron-friendliness
-import argparse
+import os
+import sys
+import time
 import logging
+import datetime as dt
 from pathlib import Path
-import contextlib
+from typing import List, Dict, Tuple
+
+import requests
+
+# Optional: load .env if present
 try:
-    import fcntl  # not available on Windows; fine on Linux servers like Cloudways
+    from dotenv import load_dotenv
+    load_dotenv()
 except Exception:
-    fcntl = None
+    pass
 
-from nomads import latest_available_run, gfswave_file_name
+# Local helpers from nomads.py
+from nomads import latest_available_run_with_base, build_hour_urls
 
+# ===== Logging =====
+LOGLEVEL = os.getenv("LOGLEVEL", "INFO").upper()
+logging.basicConfig(level=getattr(logging, LOGLEVEL, logging.INFO), format="%(message)s")
 
-# ---------------- Stations (same run for all) ----------------
-POINTS: Dict[str, Dict[str, float]] = {
-    "41112": {"lat": 30.709, "lon": -81.292},
-    "41117": {"lat": 29.999, "lon": -81.079},
+# ===== Config =====
+HTTP_TIMEOUT = int(os.getenv("HTTP_TIMEOUT", "30"))
+USER_AGENT = os.getenv("HTTP_USER_AGENT", "normal-surf/1.0")
+OUT_ROOT = Path(os.getenv("OUT_ROOT", "data/grib/gfswave"))
+HOURS_SPEC = os.getenv("HOURS", "0:72:3")  # "start:end:step"
+
+# Stations (lat, lon). Add more if needed.
+STATIONS: Dict[str, Tuple[float, float]] = {
+    "41112": (30.709, -81.292),
+    "41117": (29.999, -81.079),
 }
 
-# ---------------- Env helpers ----------------
-def env_float(n, d):  v=os.getenv(n); return float(v) if v not in (None,"") else d
-def env_int(n, d):    v=os.getenv(n); return int(v) if v not in (None,"") else d
-def env_bool(n, d=False):
-    v=(os.getenv(n) or "").strip().lower()
-    return d if v=="" else v in ("1","true","yes","y")
-def env_list(n, d):   v=os.getenv(n); return [s.strip() for s in v.split(",") if s.strip()] if v else d
-def ensure_dir(p):    os.makedirs(p, exist_ok=True)
+def parse_hours(spec: str) -> List[int]:
+    a, b, c = (int(x) for x in spec.split(":"))
+    return list(range(a, b + 1, c))
 
-# ---------------- Lon helpers (WW3 is 0..360) ----------------
-def lon_to_360(lon_deg: float) -> float:
-    x = lon_deg % 360.0
-    return x if x >= 0 else x + 360.0
+def download(url: str, out_path: Path, retries: int = 3, timeout: int = HTTP_TIMEOUT) -> bool:
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    for attempt in range(1, retries + 1):
+        try:
+            with requests.get(url, stream=True, timeout=timeout, headers={"User-Agent": USER_AGENT}) as r:
+                if r.status_code != 200:
+                    raise RuntimeError(f"HTTP {r.status_code}")
+                with open(out_path, "wb") as f:
+                    for chunk in r.iter_content(1024 * 1024):
+                        if chunk:
+                            f.write(chunk)
+            return True
+        except Exception as ex:
+            logging.warning(f"download fail ({attempt}/{retries}) {url}: {ex}")
+            time.sleep(2 * attempt)
+    return False
 
-def bbox_segments_0_360(center_lon: float, pad_deg: float) -> List[Tuple[float, float]]:
-    c = lon_to_360(center_lon)
-    L = (c - pad_deg) % 360.0
-    R = (c + pad_deg) % 360.0
-    return [(L, R)] if L <= R else [(0.0, R), (L, 360.0)]
-
-# ---------------- NOMADS subset URL + download ----------------
-def build_subset_url(date: dt.date, cycle: int, fh: int,
-                     leftlon: float, rightlon: float,
-                     toplat: float, bottomlat: float,
-                     vars_list: List[str]) -> str:
-    ymd = date.strftime("%Y%m%d")
-    base = "https://nomads.ncep.noaa.gov/cgi-bin/filter_gfswave.pl"
-    parts = [
-        f"dir=/gfs.{ymd}/{cycle:02d}/wave/gridded",
-        f"file={gfswave_file_name(cycle, fh)}",
-        f"leftlon={leftlon}", f"rightlon={rightlon}",
-        f"toplat={toplat}",   f"bottomlat={bottomlat}",
-    ] + [f"var_{v}=on" for v in vars_list]
-    return f"{base}?{'&'.join(parts)}"
-
-def download(url: str, dest: str, timeout: int = 120) -> None:
-    r = requests.get(url, stream=True, timeout=timeout); r.raise_for_status()
-    with open(dest, "wb") as f:
-        for chunk in r.iter_content(chunk_size=1<<20):
-            if chunk: f.write(chunk)
-
-# ---------------- xarray helpers ----------------
-def normalize_vars(ds: xr.Dataset) -> xr.Dataset:
-    """Map cfgrib names to canonical WW3 names."""
-    rename = {}
-    for v in ds.data_vars:
-        lv = v.lower()
-        if lv.startswith("htsgw") or lv == "swh": rename[v] = "HTSGW"
-        elif lv.startswith("dirpw") or lv == "mwd": rename[v] = "DIRPW"
-        elif lv.startswith("perpw") or lv == "mwp": rename[v] = "PERPW"
-    return ds.rename(rename) if rename else ds
-
-def ensure_valid_time(ds: xr.Dataset) -> xr.Dataset:
-    """Make 'time' the VALID time (prefer valid_time; else time+step)."""
-    if "valid_time" in ds.coords:
-        ds = ds.assign_coords(time=pd.to_datetime(ds["valid_time"].values))
-        ds = ds.reset_coords("valid_time", drop=True)
-    elif "time" in ds.coords and "step" in ds.coords:
-        base = pd.to_datetime(ds["time"].values)
-        lead = pd.to_timedelta(ds["step"].values)
-        ds = ds.assign_coords(time=base + lead)
-    if "step" in ds.coords or "step" in ds.variables:
-        ds = ds.reset_coords("step", drop=True)
-    return ds
-
-def select_point(ds: xr.Dataset, lat: float, lon_minus180_180: float) -> xr.Dataset:
-    if "longitude" not in ds.coords or "latitude" not in ds.coords:
-        raise SystemExit("Dataset missing longitude/latitude coordinates.")
-    lon_max = float(ds["longitude"].max())
-    lon_sel = lon_to_360(lon_minus180_180) if lon_max > 180.0 else lon_minus180_180
-    return ds.sel(longitude=lon_sel, latitude=lat, method="nearest")
-
-# ---------------- Formatter (your requested function) ----------------
-def dataset_to_payload(
-    ds: xr.Dataset,
-    pt_lat: float,
-    pt_lon_minus180_180: float,
-    round_dec: int = 2,
-) -> dict:
+def process_point_series(local_paths: List[str], station_id: str, lat: float, lon: float,
+                         run_date: dt.date, run_cycle: int, ymd: str) -> None:
     """
-    Convert a point-extracted Dataset into:
-      {"meta": {...}, "data": [{"time","Hs_m","Dir_deg","Per_s"}]}
+    Open each GRIB file eagerly (no dask), extract nearest-point series for one station,
+    and write JSON to data/waveforecast/wave_forecast_<station_id>.json
     """
-    ds = normalize_vars(ds)
+    import json
+    import numpy as np
+    import pandas as pd
+    import xarray as xr
 
-    # Final names → your schema
-    rename_map = {}
-    if "HTSGW" in ds: rename_map["HTSGW"] = "Hs_m"
-    if "DIRPW" in ds: rename_map["DIRPW"] = "Dir_deg"
-    if "PERPW" in ds: rename_map["PERPW"] = "Per_s"
-    if rename_map: ds = ds.rename(rename_map)
+    if not local_paths:
+        raise SystemExit("No GRIB paths provided to process_point_series().")
 
-    # Optional rounding (no numpy)
-    if round_dec is not None and round_dec >= 0:
-        for v in ds.data_vars:
-            if pd.api.types.is_numeric_dtype(ds[v].dtype):
-                ds[v].data = ds[v].data.round(round_dec)
+    rows = []
+    lon_0_360 = None  # detect grid convention once
 
-    df = ds.to_dataframe().reset_index()
-
-    # Meta coords (fallback to requested point)
-    lon_meta = float(df["longitude"].iloc[0]) if "longitude" in df else pt_lon_minus180_180
-    if lon_meta > 180.0: lon_meta -= 360.0
-    lat_meta = float(df["latitude"].iloc[0]) if "latitude" in df else pt_lat
-
-    vars_present = [c for c in ("Hs_m","Dir_deg","Per_s") if c in df.columns]
-    records = []
-    for _, row in df.iterrows():
-        rec = {"time": pd.Timestamp(row["time"]).isoformat()}
-        for k in vars_present:
-            val = row[k]
-            rec[k] = None if pd.isna(val) else float(val)
-        records.append(rec)
-
-    return {
-        "meta": {
-            "model": "gfswave",
-            "point": {"lat": float(lat_meta), "lon": float(lon_meta)},
-            "vars": vars_present
-        },
-        "data": records,
+    # Common GFS-Wave variable name fallbacks
+    var_candidates = {
+        "hs_m":   ["swh", "hs", "htsgws"],
+        "per_s":  ["perpw", "mp2", "per", "mwp"],
+        "dir_deg":["dirpw", "mwd", "dir"],
     }
 
-# ---------------- Fetch one station into a point series ----------------
-def fetch_point_series(run_date: dt.date, run_cycle: int,
-                       lat: float, lon: float,
-                       vars_list: List[str], fh_start: int, fh_end: int, fh_step: int,
-                       pad: float, cache_dir: str) -> xr.Dataset:
-    bottomlat, toplat = lat - pad, lat + pad
-    lon_segments = bbox_segments_0_360(lon, pad)
+    def pick_var(ds_or_pt, keys):
+        for k in keys:
+            if k in ds_or_pt:
+                return k
+        return None
 
-    point_ds_list: List[xr.Dataset] = []
-    for fh in range(fh_start, fh_end + 1, fh_step):
-        ds_final = None
-        for seg_idx, (L, R) in enumerate(lon_segments, start=1):
-            url = build_subset_url(run_date, run_cycle, fh, L, R, toplat, bottomlat, vars_list)
-            print(f"f{fh:03d}[seg{seg_idx}]: {url}")
-            bbox_tag = f"{L}_{R}_{toplat}_{bottomlat}".replace(".","p").replace("-","m")
-            local_name = gfswave_file_name(run_cycle, fh).replace(".grib2", f".{bbox_tag}.grib2")
-            local_path = os.path.join(cache_dir, local_name)
-            try:
-                download(url, local_path)
-                ds = xr.open_dataset(local_path, engine="cfgrib", decode_timedelta=True)
-            except Exception as e:
-                print(f"  ! seg{seg_idx} skip f{fh:03d}: {e}"); continue
-
-            keep = [v for v in ds.data_vars if any(k in v.lower() for k in ("htsgw","dirpw","perpw","swh","mwd","mwp"))]
-            if not keep:
-                print(f"  ! seg{seg_idx} skip f{fh:03d}: no vars"); continue
-            ds = ds[keep]
-
-            try:
-                ds = select_point(ds, lat, lon)
-            except Exception as e:
-                print(f"  ! seg{seg_idx} point select failed f{fh:03d}: {e}"); continue
-
-            ds = ensure_valid_time(ds).squeeze()
-            ds_final = ds
-            break
-        if ds_final is None:
-            print(f"  ! skip f{fh:03d}: no valid segment produced data"); continue
-        point_ds_list.append(ds_final)
-
-    if not point_ds_list:
-        raise SystemExit("No forecast steps opened; widen POINT_PAD_DEG (e.g., 0.4) or check run/cycle.")
-
-    merged = xr.concat(point_ds_list, dim="time", coords="minimal", compat="override", join="override").sortby("time")
-    # dedupe times just in case
-    if "time" in merged.coords:
-        merged = merged.sel(time=~merged.get_index("time").duplicated())
-    return merged
-
-# ---------------- NEW: cron/state helpers ----------------
-STATE_DIR  = Path(".state")
-STATE_FILE = STATE_DIR / "last_run.json"
-LOCK_FILE  = STATE_DIR / "cron.lock"
-
-def setup_logging():
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(message)s"
-    )
-
-def read_last_run() -> Tuple[dt.date, int] | Tuple[None, None]:
-    try:
-        with open(STATE_FILE, "r") as f:
-            obj = json.load(f)
-        d = dt.date.fromisoformat(obj["date"])
-        c = int(obj["cycle"])
-        return d, c
-    except Exception:
-        return None, None
-
-def write_last_run(run_date: dt.date, run_cycle: int) -> None:
-    STATE_DIR.mkdir(parents=True, exist_ok=True)
-    with open(STATE_FILE, "w") as f:
-        json.dump({"date": run_date.isoformat(), "cycle": run_cycle}, f)
-
-@contextlib.contextmanager
-def cron_lock(disable_lock: bool = False):
-    STATE_DIR.mkdir(parents=True, exist_ok=True)
-    if disable_lock or fcntl is None:
-        yield
-        return
-    with open(LOCK_FILE, "w") as f:
+    for p in local_paths:
+        ds = xr.open_dataset(
+            p,
+            engine="cfgrib",
+            backend_kwargs={"indexpath": "", "filter_by_keys": {"typeOfLevel": "surface"}},
+            chunks=None,           # eager read; no dask required
+            decode_times=True,
+        )
         try:
-            fcntl.flock(f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-            yield
+            # Establish lon convention once (0..360 vs -180..180)
+            if lon_0_360 is None:
+                lons = ds["longitude"].values
+                lon_0_360 = (np.nanmin(lons) >= 0.0)
+            lon_target = (lon + 360.0) % 360.0 if lon_0_360 and lon < 0.0 else lon
+
+            # ---- derive a proper time coordinate (force array-like) ----
+            if "valid_time" in ds.variables or "valid_time" in ds.coords:
+                tvals = pd.to_datetime(ds["valid_time"].values)
+            elif "time" in ds.coords and "step" in ds.variables:
+                base = pd.to_datetime(ds["time"].values)
+                lead = pd.to_timedelta(ds["step"].values)
+                tvals = base + lead
+            elif "time" in ds.coords:
+                tvals = pd.to_datetime(ds["time"].values)
+            else:
+                tvals = pd.to_datetime([f"{ymd}T{run_cycle:02d}:00:00Z"])
+
+            if isinstance(tvals, pd.Timestamp):
+                tvals = pd.DatetimeIndex([tvals])
+            else:
+                tvals = pd.to_datetime(tvals)
+
+            # nearest grid point
+            pt = ds.sel(latitude=lat, longitude=lon_target, method="nearest")
+
+            hs_k  = pick_var(pt, var_candidates["hs_m"])
+            per_k = pick_var(pt, var_candidates["per_s"])
+            dir_k = pick_var(pt, var_candidates["dir_deg"])
+            if hs_k is None and per_k is None and dir_k is None:
+                continue
+
+            n = int(getattr(tvals, "size", len(tvals)))
+            rec = {"t_utc": pd.to_datetime(tvals)}
+
+            def _vals(name):
+                if name is None:
+                    return None
+                arr = np.asarray(pt[name])
+                if arr.ndim == 0:
+                    return np.repeat(arr.astype(float), n)
+                arr = arr.reshape(-1).astype(float)
+                if arr.size == 1 and n > 1:
+                    return np.repeat(arr, n)
+                return arr[:n]
+
+            hs_v, per_v, dir_v = _vals(hs_k), _vals(per_k), _vals(dir_k)
+            if hs_v is not None:   rec["hs_m"]   = hs_v
+            if per_v is not None:  rec["per_s"]  = per_v
+            if dir_v is not None:  rec["dir_deg"]= dir_v
+
+            rows.append(pd.DataFrame(rec))
         finally:
             try:
-                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+                ds.close()
             except Exception:
                 pass
 
-# ---------------- Main ----------------
-def main():
-    setup_logging()
+    if not rows:
+        raise SystemExit(f"Parsed 0 usable records for station {station_id} (no expected vars found).")
 
-    parser = argparse.ArgumentParser(description="GFS-Wave → JSON time series per buoy")
-    parser.add_argument("--force", action="store_true", help="Run even if no new NOMADS run is available")
-    parser.add_argument("--no-lock", action="store_true", help="Disable file lock (not recommended for cron)")
-    args = parser.parse_args()
+    import pandas as pd
+    df = pd.concat(rows, ignore_index=True)
 
-    load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", ".env"))
+    # Consolidate duplicates by time (keep last) and sort
+    df = df.sort_values("t_utc").drop_duplicates(subset=["t_utc"], keep="last")
 
-    # Vars + horizon
-    vars_list = env_list("WAVE_VARS", ["HTSGW","DIRPW","PERPW"])
-    fh_start = env_int("FH_START", 0)
-    fh_end   = env_int("FH_END", 120)
-    fh_step  = env_int("FH_STEP", 3)
-    round_dec = env_int("ROUND_DECIMALS", 2)
-    pad = env_float("POINT_PAD_DEG", 0.2)
+    # sanity limits
+    if "hs_m" in df:    df = df[df["hs_m"].between(0, 20)]
+    if "per_s" in df:   df = df[df["per_s"].between(0, 30)]
+    if "dir_deg" in df: df = df[df["dir_deg"].between(0, 360)]
 
-    # Output/caching
-    out_dir  = os.getenv("OUT_DIR", "./.data/wave-forecast"); ensure_dir(out_dir)
-    cache_dir = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", ".cache")); ensure_dir(cache_dir)
+    # Output JSON only
+    out_dir = Path("data/wave-forecast")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    json_path = out_dir / f"wave_point_{station_id}.json"
 
-    # Decide the run to process
-    run_date_env  = (os.getenv("RUN_DATE")  or "").strip()
-    run_cycle_env = (os.getenv("RUN_CYCLE") or "").strip()
+    # ISO timestamps for JSON
+    recs = df.copy()
+    recs["t_utc"] = recs["t_utc"].dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+    import json
+    with open(json_path, "w") as f:
+        json.dump(recs.to_dict(orient="records"), f, indent=2)
 
-    # Lock to avoid overlapping cron executions
-    with cron_lock(disable_lock=args.no_lock):
-        # Gate: if env forces a specific run, skip "new run" check.
-        if run_date_env and run_cycle_env:
-            if "-" in run_date_env:
-                y,m,d = map(int, run_date_env.split("-"))
-            else:
-                y,m,d = int(run_date_env[:4]), int(run_date_env[4:6]), int(run_date_env[6:8])
-            run_date, run_cycle = dt.date(y,m,d), int(run_cycle_env)
-            logging.info(f"RUN override via env → {run_date} {run_cycle:02d}Z (gate bypass)")
+    logging.info(f"Wrote JSON: {json_path} ({len(df)} rows)")
+
+def main() -> None:
+    # 1) Discover newest run + concrete base directory
+    try:
+        run_date, run_cycle, base_dir = latest_available_run_with_base()
+    except RuntimeError as e:
+        if "No recent gfswave run" in str(e):
+            logging.warning("No recent gfswave run found – exiting 0 (no work).")
+            sys.exit(0)
+        raise
+
+    ymd = run_date.strftime("%Y%m%d")
+    logging.info(f"Resolved run {run_date} {run_cycle:02d}Z @ {base_dir}")
+
+    # 2) Build URLs for hours from SAME base_dir
+    hours = parse_hours(HOURS_SPEC)
+    urls = build_hour_urls(base_dir, run_cycle, hours, ext="grib2")
+
+    # 3) Download once
+    target_dir = OUT_ROOT / ymd / f"{run_cycle:02d}"
+    ok_count = 0
+    local_paths: List[str] = []
+    for u in urls:
+        fname = u.rsplit("/", 1)[-1]
+        dest = target_dir / fname
+        if dest.exists() and dest.stat().st_size > 0:
+            ok = True
         else:
-            # Normal cron mode: compare remote latest with last processed
-            remote_date, remote_cycle = latest_available_run()
-            last_date, last_cycle = read_last_run()
-            logging.info(f"NOMADS latest: {remote_date} {remote_cycle:02d}Z | last processed: "
-                         f"{'-' if last_date is None else last_date} "
-                         f"{'' if last_cycle is None else f'{last_cycle:02d}Z'}")
+            ok = download(u, dest)
+        if ok:
+            ok_count += 1
+            local_paths.append(str(dest))
 
-            if (not args.force) and (last_date == remote_date and last_cycle == remote_cycle):
-                logging.info("No new NOMADS run. Exiting.")
-                return
+    if ok_count == 0:
+        raise SystemExit(
+            f"Resolved run {ymd} {run_cycle:02d}Z @ {base_dir}, but downloaded 0 files. "
+            "Check URL pattern or try again shortly."
+        )
 
-            run_date, run_cycle = remote_date, remote_cycle
+    logging.info(f"Downloaded {ok_count}/{len(urls)} GRIB files → {target_dir}")
 
-        print(f"Using run: {run_date} {run_cycle:02d}Z for stations: {', '.join(POINTS.keys())}")
-
-        # === Your existing processing ===
-        for station, coords in POINTS.items():
-            lat, lon = coords["lat"], coords["lon"]
-            print(f"\n=== {station} @ ({lat:.3f}, {lon:.3f}) ===")
-            ds = fetch_point_series(run_date, run_cycle, lat, lon, vars_list, fh_start, fh_end, fh_step, pad, cache_dir)
-
-            payload = dataset_to_payload(ds, lat, lon, round_dec)
-            # inject run metadata for auditing
-            payload.setdefault("meta", {}).setdefault("run", {"date": run_date.strftime("%Y-%m-%d"), "cycle": run_cycle})
-
-            out_path = os.path.join(out_dir, f"wave_point_{station}.json")
-            with open(out_path, "w") as f:
-                json.dump(payload, f, separators=(",", ":"))
-            print(f"Saved → {out_path}  ({len(payload['data'])} rows)")
-
-        # Mark this run as processed (only if we reached here without raising)
-        write_last_run(run_date, run_cycle)
-        logging.info(f"Recorded last processed run: {run_date} {run_cycle:02d}Z")
+    # 4) Parse once per station → JSON
+    for station_id, (lat, lon) in STATIONS.items():
+        logging.info(f"Processing station {station_id} at lat={lat}, lon={lon}…")
+        process_point_series(local_paths, station_id, lat, lon, run_date, run_cycle, ymd)
 
 if __name__ == "__main__":
     main()

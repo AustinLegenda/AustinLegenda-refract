@@ -416,3 +416,74 @@ Stack trace:
         "41117": 181
     }
 }
+{
+    "tides": "tides_8720587",
+    "waves": {
+        "files": 0,
+        "ok": 0,
+        "skip": 0,
+        "err": 0,
+        "messages": []
+    },
+    "winds_fcst": {
+        "41112": 181,
+        "median": 181,
+        "41117": 181
+    }
+}
+{
+    "tides": "tides_8720587",
+    "waves": {
+        "files": 0,
+        "ok": 0,
+        "skip": 0,
+        "err": 0,
+        "messages": []
+    },
+    "winds_fcst": {
+        "41112": 181,
+        "median": 181,
+        "41117": 181
+    }
+}
+{
+    "tides": "tides_8720587",
+    "waves": {
+        "files": 0,
+        "ok": 0,
+        "skip": 0,
+        "err": 0,
+        "messages": []
+    },
+    "winds_fcst": {
+        "41112": 181,
+        "median": 181,
+        "41117": 181
+    }
+}
+{
+    "tides": "tides_8720587",
+    "winds_fcst": {
+        "41112": 181,
+        "median": 181,
+        "41117": 181
+    }
+}
+{
+    "tides": "tides_8720587",
+    "waves": {
+        "files": 2,
+        "ok": 2,
+        "skip": 0,
+        "err": 0,
+        "messages": [
+            "OK wave_point_41117.json -> waves_41117 rows=25",
+            "OK wave_point_41112.json -> waves_41112 rows=25"
+        ]
+    },
+    "winds_fcst": {
+        "41112": 181,
+        "median": 181,
+        "41117": 181
+    }
+}

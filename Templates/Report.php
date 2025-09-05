@@ -33,7 +33,7 @@ final class Report
 
     private const WIND_STATION_BY_KEY = [
         '41112'  => '8720030', // Fernandina
-        'median' => '8720218', // Mayport / St. Johns Entrance
+        'median' => '8720218', // Atlantic Beach
         '41117'  => 'SAUF1',   // St. Augustine
     ];
 
@@ -104,7 +104,7 @@ final class Report
 
         $rows = [
             '41112'  => ['key' => '41112',  'label' => 'St. Marys Entrance',                'data' => $r12],
-            'median' => ['key' => 'median', 'label' => 'St. Johns Approach (interpolated)', 'data' => $mid],
+            'median' => ['key' => 'median', 'label' => 'Atlantic Beach (interpolated)', 'data' => $mid],
             '41117'  => ['key' => '41117',  'label' => 'St. Augustine',                     'data' => $r17],
         ];
 
@@ -285,7 +285,7 @@ final class Report
                 'wind_key'     => '41112',
             ],
             'median' => [
-                'label'        => 'St. Johns Entrance*',
+                'label'        => 'Atlantic Beach*',
                 'coord'        => [
                     'lat' => ($c12['lat'] + $c17['lat']) / 2,
                     'lon' => ($c12['lon'] + $c17['lon']) / 2
