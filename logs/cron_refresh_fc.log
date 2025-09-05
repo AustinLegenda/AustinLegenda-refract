@@ -3,3 +3,192 @@ env: php: No such file or directory
 env: php: No such file or directory
 env: php: No such file or directory
 env: php: No such file or directory
+env: php: No such file or directory
+env: php: No such file or directory
+env: php: No such file or directory
+env: php: No such file or directory
+env: php: No such file or directory
+env: php: No such file or directory
+env: php: No such file or directory
+env: env: phpphp: : No such file or directory
+No such file or directory
+PHP Fatal error:  Uncaught PDOException: SQLSTATE[HY000] [2002] Connection refused in /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php:32
+Stack trace:
+#0 /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php(32): PDO->__construct('mysql:host=127....', 'root', Object(SensitiveParameterValue), Array)
+#1 /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php(177): Legenda\NormalSurf\BatchProcessing\ImportFC::pdo()
+#2 /Applications/MAMP/htdocs/normal-surf/bin/refresh_fc.php(47): Legenda\NormalSurf\BatchProcessing\ImportFC::refresh_all(Array)
+#3 {main}
+  thrown in /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php on line 32
+
+Fatal error: Uncaught PDOException: SQLSTATE[HY000] [2002] Connection refused in /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php:32
+Stack trace:
+#0 /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php(32): PDO->__construct('mysql:host=127....', 'root', Object(SensitiveParameterValue), Array)
+#1 /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php(177): Legenda\NormalSurf\BatchProcessing\ImportFC::pdo()
+#2 /Applications/MAMP/htdocs/normal-surf/bin/refresh_fc.php(47): Legenda\NormalSurf\BatchProcessing\ImportFC::refresh_all(Array)
+#3 {main}
+  thrown in /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php on line 32
+PHP Fatal error:  Uncaught PDOException: SQLSTATE[HY000] [2002] Connection refused in /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php:32
+Stack trace:
+#0 /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php(32): PDO->__construct('mysql:host=127....', 'root', Object(SensitiveParameterValue), Array)
+#1 /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php(177): Legenda\NormalSurf\BatchProcessing\ImportFC::pdo()
+#2 /Applications/MAMP/htdocs/normal-surf/bin/refresh_fc.php(47): Legenda\NormalSurf\BatchProcessing\ImportFC::refresh_all(Array)
+#3 {main}
+  thrown in /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php on line 32
+
+Fatal error: Uncaught PDOException: SQLSTATE[HY000] [2002] Connection refused in /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php:32
+Stack trace:
+#0 /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php(32): PDO->__construct('mysql:host=127....', 'root', Object(SensitiveParameterValue), Array)
+#1 /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php(177): Legenda\NormalSurf\BatchProcessing\ImportFC::pdo()
+#2 /Applications/MAMP/htdocs/normal-surf/bin/refresh_fc.php(47): Legenda\NormalSurf\BatchProcessing\ImportFC::refresh_all(Array)
+#3 {main}
+  thrown in /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php on line 32
+PHP Fatal error:  Uncaught PDOException: SQLSTATE[HY000] [2002] Connection refused in /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php:32
+Stack trace:
+#0 /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php(32): PDO->__construct('mysql:host=127....', 'root', Object(SensitiveParameterValue), Array)
+#1 /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php(177): Legenda\NormalSurf\BatchProcessing\ImportFC::pdo()
+#2 /Applications/MAMP/htdocs/normal-surf/bin/refresh_fc.php(47): Legenda\NormalSurf\BatchProcessing\ImportFC::refresh_all(Array)
+#3 {main}
+  thrown in /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php on line 32
+
+Fatal error: Uncaught PDOException: SQLSTATE[HY000] [2002] Connection refused in /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php:32
+Stack trace:
+#0 /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php(32): PDO->__construct('mysql:host=127....', 'root', Object(SensitiveParameterValue), Array)
+#1 /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php(177): Legenda\NormalSurf\BatchProcessing\ImportFC::pdo()
+#2 /Applications/MAMP/htdocs/normal-surf/bin/refresh_fc.php(47): Legenda\NormalSurf\BatchProcessing\ImportFC::refresh_all(Array)
+#3 {main}
+  thrown in /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php on line 32
+PHP Fatal error:  Uncaught PDOException: SQLSTATE[HY000] [2002] Connection refused in /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php:32
+Stack trace:
+#0 /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php(32): PDO->__construct('mysql:host=127....', 'root', Object(SensitiveParameterValue), Array)
+#1 /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php(177): Legenda\NormalSurf\BatchProcessing\ImportFC::pdo()
+#2 /Applications/MAMP/htdocs/normal-surf/bin/refresh_fc.php(47): Legenda\NormalSurf\BatchProcessing\ImportFC::refresh_all(Array)
+#3 {main}
+  thrown in /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php on line 32
+
+Fatal error: Uncaught PDOException: SQLSTATE[HY000] [2002] Connection refused in /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php:32
+Stack trace:
+#0 /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php(32): PDO->__construct('mysql:host=127....', 'root', Object(SensitiveParameterValue), Array)
+#1 /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php(177): Legenda\NormalSurf\BatchProcessing\ImportFC::pdo()
+#2 /Applications/MAMP/htdocs/normal-surf/bin/refresh_fc.php(47): Legenda\NormalSurf\BatchProcessing\ImportFC::refresh_all(Array)
+#3 {main}
+  thrown in /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php on line 32
+PHP Fatal error:  Uncaught PDOException: SQLSTATE[HY000] [2002] Connection refused in /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php:32
+Stack trace:
+#0 /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php(32): PDO->__construct('mysql:host=127....', 'root', Object(SensitiveParameterValue), Array)
+#1 /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php(177): Legenda\NormalSurf\BatchProcessing\ImportFC::pdo()
+#2 /Applications/MAMP/htdocs/normal-surf/bin/refresh_fc.php(47): Legenda\NormalSurf\BatchProcessing\ImportFC::refresh_all(Array)
+#3 {main}
+  thrown in /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php on line 32
+
+Fatal error: Uncaught PDOException: SQLSTATE[HY000] [2002] Connection refused in /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php:32
+Stack trace:
+#0 /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php(32): PDO->__construct('mysql:host=127....', 'root', Object(SensitiveParameterValue), Array)
+#1 /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php(177): Legenda\NormalSurf\BatchProcessing\ImportFC::pdo()
+#2 /Applications/MAMP/htdocs/normal-surf/bin/refresh_fc.php(47): Legenda\NormalSurf\BatchProcessing\ImportFC::refresh_all(Array)
+#3 {main}
+  thrown in /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php on line 32
+PHP Fatal error:  Uncaught PDOException: SQLSTATE[HY000] [2002] Connection refused in /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php:32
+Stack trace:
+#0 /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php(32): PDO->__construct('mysql:host=127....', 'root', Object(SensitiveParameterValue), Array)
+#1 /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php(177): Legenda\NormalSurf\BatchProcessing\ImportFC::pdo()
+#2 /Applications/MAMP/htdocs/normal-surf/bin/refresh_fc.php(47): Legenda\NormalSurf\BatchProcessing\ImportFC::refresh_all(Array)
+#3 {main}
+  thrown in /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php on line 32
+
+Fatal error: Uncaught PDOException: SQLSTATE[HY000] [2002] Connection refused in /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php:32
+Stack trace:
+#0 /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php(32): PDO->__construct('mysql:host=127....', 'root', Object(SensitiveParameterValue), Array)
+#1 /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php(177): Legenda\NormalSurf\BatchProcessing\ImportFC::pdo()
+#2 /Applications/MAMP/htdocs/normal-surf/bin/refresh_fc.php(47): Legenda\NormalSurf\BatchProcessing\ImportFC::refresh_all(Array)
+#3 {main}
+  thrown in /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php on line 32
+{
+    "tides": "tides_8720587",
+    "waves": [
+        {
+            "file": "wave_point_41112.json",
+            "table": "waves_41112"
+        },
+        {
+            "file": "wave_point_41117.json",
+            "table": "waves_41117"
+        }
+    ],
+    "winds_fcst": {
+        "41112": 187,
+        "median": 187,
+        "41117": 187
+    }
+}
+{
+    "tides": "tides_8720587",
+    "waves": [
+        {
+            "file": "wave_point_41112.json",
+            "table": "waves_41112"
+        },
+        {
+            "file": "wave_point_41117.json",
+            "table": "waves_41117"
+        }
+    ],
+    "winds_fcst": {
+        "41112": 187,
+        "median": 187,
+        "41117": 187
+    }
+}
+{
+    "tides": "tides_8720587",
+    "waves": [
+        {
+            "file": "wave_point_41112.json",
+            "table": "waves_41112"
+        },
+        {
+            "file": "wave_point_41117.json",
+            "table": "waves_41117"
+        }
+    ],
+    "winds_fcst": {
+        "41112": 187,
+        "median": 187,
+        "41117": 187
+    }
+}
+{
+    "tides": "tides_8720587",
+    "waves": [
+        {
+            "file": "wave_point_41112.json",
+            "table": "waves_41112"
+        },
+        {
+            "file": "wave_point_41117.json",
+            "table": "waves_41117"
+        }
+    ],
+    "winds_fcst": {
+        "41112": 187,
+        "median": 187,
+        "41117": 187
+    }
+}
+{
+    "tides": "tides_8720587",
+    "waves": [
+        {
+            "file": "wave_point_41112.json",
+            "table": "waves_41112"
+        },
+        {
+            "file": "wave_point_41117.json",
+            "table": "waves_41117"
+        }
+    ],
+    "winds_fcst": {
+        "41112": 187,
+        "median": 187,
+        "41117": 187
+    }
+}
