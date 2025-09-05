@@ -48,20 +48,25 @@ final class Report
     ];
 
 
-    public function __construct(?PDO $pdo = null)
-    {
-        if ($pdo instanceof PDO) {
-            $this->pdo = $pdo;
-        } else {
-            [$conn] = LoadData::conn_report('41112');
-            $this->pdo = $conn;
-        }
+public function __construct(?PDO $pdo = null)
+{
+    if ($pdo instanceof PDO) {
+        $this->pdo = $pdo;
+    } else {
+        // Import buoy obs and get PDO
+        [$conn] = \Legenda\NormalSurf\Hooks\LoadData::conn_report(['41112','41117']); // import both buoys
+        $this->pdo = $conn;
 
-        $this->stations = new StationRepo($this->pdo);
-        $this->waveCell = new WaveCell();                 // formatter only
-        $this->tideCell = new TideCell($this->pdo);       // formatter only
-        $this->selector = new SpotSelector();             // gates & selects
+        // 🔹 Kick winds the same way (CO-OPS + NDBC), with a short TTL so you don't hammer APIs
+        // CO-OPS numeric stations and NDBC alpha codes you care about:
+        \Legenda\NormalSurf\Hooks\LoadData::conn_winds(['8720030','8720218','SAUF1'], 300);
     }
+
+    $this->stations = new StationRepo($this->pdo);
+    $this->waveCell = new WaveCell();
+    $this->tideCell = new TideCell($this->pdo);
+    $this->selector = new SpotSelector();
+}
 
     private static function tideStationIdForKey(int|string $key): ?string
     {
