@@ -6,7 +6,7 @@ namespace Legenda\NormalSurf\API;
 use PDO;
 use Exception;
 use Legenda\NormalSurf\BatchProcessing\NDBCWindParser;
-use Legenda\NormalSurf\Hooks\LoadData;
+use Legenda\NormalSurf\BatchProcessing\ImportCC;
 
 /**
  * Fetch + parse realtime wind TXT from NDBC and (optionally) insert to per-station tables.
@@ -131,7 +131,7 @@ final class NDBCWindStationsRequest
         $stations = ['SAUF1'];
 
         try {
-            [$pdo] = LoadData::conn_report();
+            [$pdo] = ImportCC::conn_winds();
             self::refresh_many($stations, $pdo);
         } catch (Exception $e) {
             error_log('NDBCWindStationsRequest cron error: ' . $e->getMessage());

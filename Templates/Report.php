@@ -9,7 +9,7 @@ use DateTime;
 use DateTimeZone;
 
 use Legenda\NormalSurf\Repositories\StationRepo;
-use Legenda\NormalSurf\Hooks\LoadData;
+use Legenda\NormalSurf\BatchProcessing\ImportCC;
 use Legenda\NormalSurf\Hooks\WaveCell;
 use Legenda\NormalSurf\Hooks\TideCell;
 use Legenda\NormalSurf\Hooks\WindCell;
@@ -54,12 +54,12 @@ public function __construct(?PDO $pdo = null)
         $this->pdo = $pdo;
     } else {
         // Import buoy obs and get PDO
-        [$conn] = \Legenda\NormalSurf\Hooks\LoadData::conn_report(['41112','41117']); // import both buoys
+        [$conn] = ImportCC::conn_report(['41112','41117']); // import both buoys
         $this->pdo = $conn;
 
         // 🔹 Kick winds the same way (CO-OPS + NDBC), with a short TTL so you don't hammer APIs
         // CO-OPS numeric stations and NDBC alpha codes you care about:
-        \Legenda\NormalSurf\Hooks\LoadData::conn_winds(['8720030','8720218','SAUF1'], 300);
+       ImportCC::conn_winds(['8720030','8720218','SAUF1'], 300);
     }
 
     $this->stations = new StationRepo($this->pdo);
@@ -139,7 +139,7 @@ public function __construct(?PDO $pdo = null)
 
             $wcode = self::windStationCodeForKey($k);
             if ($wcode) {
-                $w = LoadData::winds_latest($this->pdo, $wcode);
+                $w = ImportCC::winds_latest($this->pdo, $wcode);
                 if ($w) {
                     $rows[$k]['wind_label'] = WindCell::format(
                         isset($w['WDIR']) ? (int)$w['WDIR'] : null,

@@ -3,7 +3,7 @@
 namespace Legenda\NormalSurf\API;
 
 use Legenda\NormalSurf\BatchProcessing\SpectralDataParser;
-use Legenda\NormalSurf\Hooks\LoadData;
+use Legenda\NormalSurf\BatchProcessing\ImportCC;
 
 class NoaaRequest
 {
@@ -47,7 +47,7 @@ class NoaaRequest
                 error_log("Refreshing data for station $station");
 
                 // This will fetch, parse, insert, and return DB connection + latest data
-                [$pdo, $station, $cols, $colsList, $table] = \Legenda\NormalSurf\Hooks\LoadData::conn_report($station);
+                [$pdo, $station, $cols, $colsList, $table] = ImportCC::conn_report($station);
 
                 error_log("Insert complete for station $station");
             } catch (\Exception $e) {

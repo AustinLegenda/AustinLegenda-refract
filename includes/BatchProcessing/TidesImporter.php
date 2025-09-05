@@ -3,7 +3,7 @@
 require_once dirname(__DIR__, 2) . '/vendor/autoload.php';
 require_once dirname(__DIR__, 2) . '/config.php';
 
-use Legenda\NormalSurf\Hooks\LoadData;
+use Legenda\NormalSurf\BatchProcessing\ImportFC;
 
 $pdo = new PDO(
     "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=utf8mb4",
@@ -13,6 +13,6 @@ $pdo = new PDO(
 );
 
 $xmlPath = dirname(__DIR__, 2) . '/assets/xml_data/8720587_annual.xml';
-$table = LoadData::import_tides_from_xml($pdo, $xmlPath);
+$table = ImportFC::import_tides_from_xml($pdo, $xmlPath);
 
 echo "Imported tides into table: {$table}\n";

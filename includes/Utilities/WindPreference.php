@@ -5,7 +5,8 @@ namespace Legenda\NormalSurf\Utilities;
 
 use PDO;
 use Legenda\NormalSurf\Hooks\WindCell;
-use Legenda\NormalSurf\Hooks\LoadData;
+use Legenda\NormalSurf\BatchProcessing\ImportCC;
+use Legenda\NormalSurf\BatchProcessing\ImportFC;
 
 final class WindPreference
 {
@@ -38,7 +39,7 @@ final class WindPreference
         $code = $map[$key] ?? null;
         if (!$code) return ['ok' => false, 'label' => '—'];
 
-        $w = LoadData::winds_latest($pdo, $code);
+        $w = ImportCC::winds_latest($pdo, $code);
         if (!$w) return ['ok' => false, 'label' => '—'];
 
         $dir = isset($w['WDIR']) ? (int)$w['WDIR'] : null;

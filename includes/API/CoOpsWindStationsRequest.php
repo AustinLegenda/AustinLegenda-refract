@@ -8,7 +8,7 @@ use PDO;
 use Exception;
 use DateTime;
 use DateTimeZone;
-use Legenda\NormalSurf\Hooks\LoadData;
+use Legenda\NormalSurf\BatchProcessing\ImportCC;
 
 /**
  * Fetch + parse realtime wind from NOAA CO-OPS API and (optionally) insert to per-station tables.
@@ -142,7 +142,7 @@ final class CoOpsWindStationsRequest
     {
         $stations = ['8720030', '8720218', '8720587'];
         try {
-            [$pdo] = LoadData::conn_report();
+            [$pdo] = ImportCC::conn_winds();
             self::refresh_many($stations, $pdo);
         } catch (Exception $e) {
             error_log('CoOpsWindStationsRequest cron error: ' . $e->getMessage());
