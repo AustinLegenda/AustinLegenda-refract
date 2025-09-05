@@ -1,223 +1,250 @@
 <?php
+declare(strict_types=1);
+
 namespace Legenda\NormalSurf\Repositories;
 
 use PDO;
 
-class WaveForecastRepo
+final class WaveForecastRepo
 {
     /**
-     * Import a JSON forecast (from your Python) into a per-station table.
-     * - If $tableName null, derive from filename like wave_point_41112.json -> waves_41112
-     * - Expects payload: { meta:{...}, data:[ {time, Hs_m, Dir_deg, Per_s}, ... ] }
-     * - Stores: UTC+local timestamps, heights in m+ft, dir deg + 16-pt compass, period s
+     * Import one JSON file.
+     * Accepts either:
+     *   A) { meta:{...}, data:[ {time, Hs_m, Dir_deg, Per_s}, ... ] }   (current files)
+     *   B) [ {t_utc, hs_m, dir_deg, per_s}, ... ]                       (legacy flat rows)
      *
-     * @return string Table name used (e.g., waves_41112)
+     * If $tableName is null, infer from filename: wave_point_(\d+)\.json -> waves_<ID>.
      */
     public static function importJson(
         PDO $pdo,
         string $jsonPath,
         ?string $tableName = null,
-        string $localTz = 'America/New_York'
+        string $localTz = 'America/New_York' // kept for parity
     ): string {
-        if (!is_file($jsonPath)) {
-            throw new \RuntimeException("JSON not found: {$jsonPath}");
-        }
-        $raw = file_get_contents($jsonPath);
-        $payload = json_decode($raw, true);
-        if (!is_array($payload) || !isset($payload['data']) || !is_array($payload['data'])) {
-            throw new \RuntimeException("Invalid JSON structure in {$jsonPath}");
-        }
+        if (!\is_file($jsonPath)) return "SKIP: not a file: $jsonPath";
 
-        // Resolve table
-        $table = $tableName ?: self::deriveTableNameFromFilename($jsonPath);
+        $base = \basename($jsonPath);
 
-        // Ensure table
-        $pdo->exec("
-            CREATE TABLE IF NOT EXISTS `{$table}` (
-              id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-              t_local       DATETIME        NOT NULL,
-              t_utc         DATETIME        NOT NULL,
-              hs_m          DECIMAL(6,3)    NULL,
-              hs_ft         DECIMAL(6,3)    NULL,
-              dir_deg       DECIMAL(6,2)    NULL,
-              dir_compass   CHAR(3)         NULL,
-              per_s         DECIMAL(6,2)    NULL,
-              src_model     VARCHAR(32)     NOT NULL DEFAULT 'gfswave',
-              created_at    TIMESTAMP       DEFAULT CURRENT_TIMESTAMP,
-              updated_at    TIMESTAMP       DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-              PRIMARY KEY (id),
-              UNIQUE KEY uq_time (t_utc),
-              KEY idx_time (t_utc),
-              KEY idx_local (t_local)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-        ");
-
-        $ins = $pdo->prepare("
-            INSERT INTO `{$table}` (t_local, t_utc, hs_m, hs_ft, dir_deg, dir_compass, per_s, src_model)
-            VALUES (:t_local, :t_utc, :hs_m, :hs_ft, :dir_deg, :dir_compass, :per_s, :src_model)
-            ON DUPLICATE KEY UPDATE
-              hs_m = VALUES(hs_m),
-              hs_ft = VALUES(hs_ft),
-              dir_deg = VALUES(dir_deg),
-              dir_compass = VALUES(dir_compass),
-              per_s = VALUES(per_s),
-              updated_at = CURRENT_TIMESTAMP
-        ");
-
-        $tzLocal = new \DateTimeZone($localTz);
-        $model   = (string)($payload['meta']['model'] ?? 'gfswave');
-
-        foreach ($payload['data'] as $row) {
-            if (!isset($row['time'])) continue;
-
-            // Time is UTC ISO8601; normalize
-            $utc = self::parseUtcIso($row['time']);
-            if (!$utc) continue;
-
-            $local = clone $utc;
-            $local->setTimezone($tzLocal);
-
-            $hs_m  = self::toNullableFloat($row['Hs_m'] ?? null);
-            $hs_ft = is_null($hs_m) ? null : $hs_m * 3.28084;
-
-            $dir   = self::toNullableFloat($row['Dir_deg'] ?? null);
-            $comp  = is_null($dir) ? null : self::degToCompass($dir);
-
-            $per_s = self::toNullableFloat($row['Per_s'] ?? null);
-
-            $ins->execute([
-                ':t_local'     => $local->format('Y-m-d H:i:00'),
-                ':t_utc'       => $utc->format('Y-m-d H:i:00'),
-                ':hs_m'        => self::roundOrNull($hs_m, 3),
-                ':hs_ft'       => self::roundOrNull($hs_ft, 2),
-                ':dir_deg'     => self::roundOrNull($dir, 2),
-                ':dir_compass' => $comp,
-                ':per_s'       => self::roundOrNull($per_s, 2),
-                ':src_model'   => $model,
-            ]);
+        if ($tableName === null) {
+            if (\preg_match('/wave_point_(\d+)\.json$/', $base, $m)) {
+                $tableName = 'waves_' . $m[1];
+            } else {
+                return "SKIP: cannot infer table for $base";
+            }
         }
 
-        return $table;
+        $raw = \file_get_contents($jsonPath);
+        if ($raw === false) return "SKIP: read error $jsonPath";
+
+        $json = \json_decode($raw, true);
+        if (!\is_array($json)) return "SKIP: bad json $base";
+
+        $rows = self::normalizeRows($json);
+        if (!$rows) return "SKIP: no usable rows in $base";
+
+        self::ensureTable($pdo, $tableName);
+
+        $pdo->beginTransaction();
+        try {
+            $sql = "INSERT INTO `$tableName` (t_utc, hs_m, per_s, dir_deg)
+                    VALUES (:t_utc, :hs_m, :per_s, :dir_deg)
+                    ON DUPLICATE KEY UPDATE
+                        hs_m=VALUES(hs_m),
+                        per_s=VALUES(per_s),
+                        dir_deg=VALUES(dir_deg)";
+            $stmt = $pdo->prepare($sql);
+
+            foreach ($rows as $r) {
+                $stmt->execute([
+                    ':t_utc'   => $r['t_utc'],
+                    ':hs_m'    => $r['hs_m'],
+                    ':per_s'   => $r['per_s'],
+                    ':dir_deg' => $r['dir_deg'],
+                ]);
+            }
+
+            $pdo->commit();
+            return "OK $base -> $tableName rows=" . \count($rows);
+        } catch (\Throwable $e) {
+            $pdo->rollBack();
+            return "ERR $base -> $tableName: " . $e->getMessage();
+        }
     }
 
-    /** Bulk import all JSONs in a directory (e.g., .data/wave-forecast). */
+    /** Import all matching JSON files under a directory (recursive). */
     public static function importDirectory(PDO $pdo, string $dir, string $localTz = 'America/New_York'): array
     {
-        if (!is_dir($dir)) throw new \RuntimeException("Dir not found: {$dir}");
-        $imported = [];
-        foreach (glob(rtrim($dir, '/')."/*.json") as $path) {
-            $table = self::importJson($pdo, $path, null, $localTz);
-            $imported[] = ['file' => basename($path), 'table' => $table];
+        $stats = ['files' => 0, 'ok' => 0, 'skip' => 0, 'err' => 0, 'messages' => []];
+
+        if (!\is_dir($dir)) {
+            $stats['messages'][] = "MISSING dir: $dir";
+            return $stats;
         }
-        return $imported;
+
+        $rii = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS)
+        );
+
+        foreach ($rii as $spl) {
+            if (!$spl->isFile()) continue;
+            $name = $spl->getFilename();
+
+            if (!\preg_match('/^wave_point_(\d+)\.json$/', $name)) continue;
+
+            $stats['files']++;
+            $res = self::importJson($pdo, $spl->getPathname(), null, $localTz);
+            $stats['messages'][] = $res;
+
+            if (\str_starts_with($res, 'OK'))       $stats['ok']++;
+            elseif (\str_starts_with($res, 'SKIP')) $stats['skip']++;
+            else                                     $stats['err']++;
+        }
+
+        return $stats;
     }
 
-    /** Get a forward time window (UTC) for UI/api. */
-    public static function getRange(PDO $pdo, string $stationId, string $startUtc, string $endUtc, int $limit = 500): array
-    {
-        $table = self::tableFor($stationId);
-        $stmt = $pdo->prepare("
-            SELECT t_utc, t_local, hs_m, hs_ft, dir_deg, dir_compass, per_s
-            FROM `{$table}`
-            WHERE t_utc >= :start AND t_utc <= :end
-            ORDER BY t_utc ASC
-            LIMIT :lim
-        ");
-        $stmt->bindValue(':start', $startUtc);
-        $stmt->bindValue(':end',   $endUtc);
-        $stmt->bindValue(':lim',   $limit, PDO::PARAM_INT);
-        $stmt->execute();
-        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    }
+    // ===== Query helpers used by Interpolator/ImportFC =====
 
-    /** Next N forecast rows from now (UTC). */
-    public static function getNext(PDO $pdo, string $stationId, string $nowUtc, int $limit = 8): array
-    {
-        $table = self::tableFor($stationId);
-        $stmt = $pdo->prepare("
-            SELECT t_utc, t_local, hs_m, hs_ft, dir_deg, dir_compass, per_s
-            FROM `{$table}`
-            WHERE t_utc >= :now
-            ORDER BY t_utc ASC
-            LIMIT :lim
-        ");
-        $stmt->bindValue(':now', $nowUtc);
-        $stmt->bindValue(':lim', $limit, PDO::PARAM_INT);
-        $stmt->execute();
-        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    }
-
-    /** Latest row strictly before now (UTC). */
     public static function getPrev(PDO $pdo, string $stationId, string $nowUtc): ?array
     {
-        $table = self::tableFor($stationId);
-        $stmt = $pdo->prepare("
-            SELECT t_utc, t_local, hs_m, hs_ft, dir_deg, dir_compass, per_s
-            FROM `{$table}`
-            WHERE t_utc < :now
-            ORDER BY t_utc DESC
-            LIMIT 1
-        ");
-        $stmt->execute([':now' => $nowUtc]);
-        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        $table = self::tableForStation($stationId);
+        $sql = "SELECT t_utc, hs_m, per_s, dir_deg
+                  FROM `$table`
+                 WHERE t_utc <= :now
+              ORDER BY t_utc DESC
+                 LIMIT 1";
+        $st = $pdo->prepare($sql);
+        $st->bindValue(':now', $nowUtc, PDO::PARAM_STR);
+        $st->execute();
+        $row = $st->fetch(PDO::FETCH_ASSOC);
         return $row ?: null;
     }
 
-    // ---------------- helpers ----------------
-
-    /** Map 'wave_point_41112.json' → 'waves_41112'. */
-    private static function deriveTableNameFromFilename(string $jsonPath): string
+    public static function getNext(PDO $pdo, string $stationId, string $nowUtc, int $limit = 8): array
     {
-        $base = basename($jsonPath);
-        if (preg_match('/(\d{5,9})/', $base, $m)) {
-            return 'waves_' . $m[1];
-        }
-        throw new \RuntimeException("Unable to derive table name from filename; pass \$tableName.");
+        $table = self::tableForStation($stationId);
+        $sql = "SELECT t_utc, hs_m, per_s, dir_deg
+                  FROM `$table`
+                 WHERE t_utc >= :now
+              ORDER BY t_utc ASC
+                 LIMIT :lim";
+        $st = $pdo->prepare($sql);
+        $st->bindValue(':now', $nowUtc, PDO::PARAM_STR);
+        $st->bindValue(':lim', $limit, PDO::PARAM_INT);
+        $st->execute();
+        return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
-    /** Map '41112' → 'waves_41112'. */
-    private static function tableFor(string $stationId): string
+    public static function getRange(PDO $pdo, string $stationId, string $startUtc, string $endUtc, int $limit = 500): array
     {
-        return 'waves_' . preg_replace('/\D+/', '', $stationId);
+        $table = self::tableForStation($stationId);
+        $sql = "SELECT t_utc, hs_m, per_s, dir_deg
+                  FROM `$table`
+                 WHERE t_utc >= :start AND t_utc <= :end
+              ORDER BY t_utc ASC
+                 LIMIT :lim";
+        $st = $pdo->prepare($sql);
+        $st->bindValue(':start', $startUtc, PDO::PARAM_STR);
+        $st->bindValue(':end',   $endUtc,   PDO::PARAM_STR);
+        $st->bindValue(':lim',   $limit,    PDO::PARAM_INT);
+        $st->execute();
+        return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
-    private static function toNullableFloat($v): ?float
-    {
-        if ($v === null) return null;
-        if ($v === '') return null;
-        if (!is_numeric($v)) return null;
-        return (float)$v;
-    }
+    // ===== Internals =====
 
-    private static function roundOrNull(?float $v, int $decimals): ?float
+    private static function normalizeRows(array $json): array
     {
-        return is_null($v) ? null : round($v, $decimals);
-    }
+        // Case A: { meta:{...}, data:[ ... ] }
+        if (isset($json['data']) && \is_array($json['data'])) {
+            $out = [];
+            foreach ($json['data'] as $r) {
+                if (!\is_array($r) || !isset($r['time'])) continue;
 
-    private static function parseUtcIso(string $iso): ?\DateTime
-    {
-        // Normalize variants like "2025-08-18T06:00:00" and "...Z"
-        $s = rtrim($iso);
-        if (!preg_match('/Z$/', $s)) $s .= 'Z';
-        $dt = \DateTime::createFromFormat(\DateTime::ISO8601, $s);
-        if ($dt === false) {
-            // Fallback
-            try {
-                $dt = new \DateTime($s, new \DateTimeZone('UTC'));
-            } catch (\Exception $e) {
-                return null;
+                $tUtc = self::toUtcMinute((string)$r['time']);
+                if ($tUtc === null) continue;
+
+                $hs  = self::numOrNull($r['Hs_m']    ?? $r['hs_m']    ?? null);
+                $per = self::numOrNull($r['Per_s']   ?? $r['per_s']   ?? null);
+                $dir = self::numOrNull($r['Dir_deg'] ?? $r['dir_deg'] ?? null);
+
+                $out[] = [
+                    't_utc'   => $tUtc,
+                    'hs_m'    => $hs,
+                    'per_s'   => $per,
+                    'dir_deg' => $dir,
+                ];
             }
+            return $out;
         }
-        $dt->setTimezone(new \DateTimeZone('UTC'));
-        return $dt;
+
+        // Case B: legacy flat list
+        if (self::isList($json)) {
+            $out = [];
+            foreach ($json as $r) {
+                if (!\is_array($r) || !isset($r['t_utc'])) continue;
+                $out[] = [
+                    't_utc'   => self::toUtcMinute((string)$r['t_utc']) ?? (string)$r['t_utc'],
+                    'hs_m'    => self::numOrNull($r['hs_m']    ?? null),
+                    'per_s'   => self::numOrNull($r['per_s']   ?? null),
+                    'dir_deg' => self::numOrNull($r['dir_deg'] ?? null),
+                ];
+            }
+            return $out;
+        }
+
+        return [];
     }
 
-    /** 16-point compass (coming-from). */
-    private static function degToCompass(float $deg): string
+    private static function numOrNull($v): ?float
     {
-        static $dirs = ["N","NNE","NE","ENE","E","ESE","SE","SSE",
-                        "S","SSW","SW","WSW","W","WNW","NW","NNW"];
-        $i = (int)floor((fmod(($deg + 11.25), 360.0)) / 22.5);
-        return $dirs[$i % 16];
+        return \is_numeric($v) ? (float)$v : null;
+    }
+
+    private static function toUtcMinute(string $t): ?string
+    {
+        try {
+            $dt = new \DateTime($t, new \DateTimeZone('UTC'));
+            return $dt->format('Y-m-d H:i:00');
+        } catch (\Throwable) {
+            if (\ctype_digit($t)) {
+                $dt = (new \DateTime('@' . $t))->setTimezone(new \DateTimeZone('UTC'));
+                return $dt->format('Y-m-d H:i:00');
+            }
+            return null;
+        }
+    }
+
+    private static function ensureTable(PDO $pdo, string $table): void
+    {
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS `$table` (
+                `t_utc`   DATETIME NOT NULL,
+                `hs_m`    DOUBLE NULL,
+                `per_s`   DOUBLE NULL,
+                `dir_deg` DOUBLE NULL,
+                PRIMARY KEY (`t_utc`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        ");
+    }
+
+    private static function tableForStation(string $stationId): string
+    {
+        if (!\preg_match('/^\d+$/', $stationId)) {
+            throw new \InvalidArgumentException('Bad station id: ' . $stationId);
+        }
+        return 'waves_' . $stationId;
+    }
+
+    private static function isList(array $array): bool
+    {
+        if (\function_exists('array_is_list')) {
+            return \array_is_list($array);
+        }
+        $i = 0;
+        foreach ($array as $k => $_) {
+            if ($k !== $i++) return false;
+        }
+        return true;
     }
 }

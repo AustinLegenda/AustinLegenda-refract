@@ -264,3 +264,137 @@ Stack trace:
         "41117": 184
     }
 }
+{
+    "tides": "tides_8720587",
+    "waves": [],
+    "winds_fcst": {
+        "41112": 184,
+        "median": 184,
+        "41117": 184
+    }
+}
+{
+    "tides": "tides_8720587",
+    "winds_fcst": {
+        "41112": 184,
+        "median": 184,
+        "41117": 184
+    }
+}
+{
+    "tides": "tides_8720587",
+    "winds_fcst": {
+        "41112": 184,
+        "median": 184,
+        "41117": 184
+    }
+}
+{
+    "tides": "tides_8720587",
+    "winds_fcst": {
+        "41112": 181,
+        "median": 181,
+        "41117": 181
+    }
+}
+{
+    "tides": "tides_8720587",
+    "winds_fcst": {
+        "41112": 181,
+        "median": 181,
+        "41117": 181
+    }
+}
+{
+    "tides": "tides_8720587",
+    "winds_fcst": {
+        "41112": 181,
+        "median": 181,
+        "41117": 181
+    }
+}
+{
+    "tides": "tides_8720587",
+    "winds_fcst": {
+        "41112": 181,
+        "median": 181,
+        "41117": 181
+    }
+}
+{
+    "tides": "tides_8720587",
+    "winds_fcst": {
+        "41112": 181,
+        "median": 181,
+        "41117": 181
+    }
+}
+{
+    "tides": "tides_8720587",
+    "winds_fcst": {
+        "41112": 181,
+        "median": 181,
+        "41117": 181
+    }
+}
+{
+    "tides": "tides_8720587",
+    "winds_fcst": {
+        "41112": 181,
+        "median": 181,
+        "41117": 181
+    }
+}
+{
+    "tides": "tides_8720587",
+    "winds_fcst": {
+        "41112": 181,
+        "median": 181,
+        "41117": 181
+    }
+}
+{
+    "tides": "tides_8720587",
+    "waves": {
+        "files": 2,
+        "ok": 0,
+        "skip": 0,
+        "err": 2,
+        "messages": [
+            "ERR wave_point_41117.json -> waves_41117: SQLSTATE[HY000]: General error: 1364 Field 't_local' doesn't have a default value",
+            "ERR wave_point_41112.json -> waves_41112: SQLSTATE[HY000]: General error: 1364 Field 't_local' doesn't have a default value"
+        ]
+    },
+    "winds_fcst": {
+        "41112": 181,
+        "median": 181,
+        "41117": 181
+    }
+}
+PHP Fatal error:  Uncaught Error: Class "Legenda\NormalSurf\BatchProcessing\ImportFC" not found in /Applications/MAMP/htdocs/normal-surf/bin/refresh_fc.php:47
+Stack trace:
+#0 {main}
+  thrown in /Applications/MAMP/htdocs/normal-surf/bin/refresh_fc.php on line 47
+
+Fatal error: Uncaught Error: Class "Legenda\NormalSurf\BatchProcessing\ImportFC" not found in /Applications/MAMP/htdocs/normal-surf/bin/refresh_fc.php:47
+Stack trace:
+#0 {main}
+  thrown in /Applications/MAMP/htdocs/normal-surf/bin/refresh_fc.php on line 47
+PHP Fatal error:  Uncaught Error: Class "Legenda\NormalSurf\BatchProcessing\ImportFC" not found in /Applications/MAMP/htdocs/normal-surf/bin/refresh_fc.php:47
+Stack trace:
+#0 {main}
+  thrown in /Applications/MAMP/htdocs/normal-surf/bin/refresh_fc.php on line 47
+
+Fatal error: Uncaught Error: Class "Legenda\NormalSurf\BatchProcessing\ImportFC" not found in /Applications/MAMP/htdocs/normal-surf/bin/refresh_fc.php:47
+Stack trace:
+#0 {main}
+  thrown in /Applications/MAMP/htdocs/normal-surf/bin/refresh_fc.php on line 47
+PHP Fatal error:  Uncaught Error: Call to undefined method Legenda\NormalSurf\BatchProcessing\ImportFC::refresh_all() in /Applications/MAMP/htdocs/normal-surf/bin/refresh_fc.php:47
+Stack trace:
+#0 {main}
+  thrown in /Applications/MAMP/htdocs/normal-surf/bin/refresh_fc.php on line 47
+
+Fatal error: Uncaught Error: Call to undefined method Legenda\NormalSurf\BatchProcessing\ImportFC::refresh_all() in /Applications/MAMP/htdocs/normal-surf/bin/refresh_fc.php:47
+Stack trace:
+#0 {main}
+  thrown in /Applications/MAMP/htdocs/normal-surf/bin/refresh_fc.php on line 47

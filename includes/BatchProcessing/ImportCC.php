@@ -5,10 +5,11 @@ declare(strict_types=1);
 namespace Legenda\NormalSurf\BatchProcessing;
 
 use PDO;
+use Throwable;
 use Legenda\NormalSurf\BatchProcessing\SpectralDataParser;
 use Legenda\NormalSurf\Repositories\WaveBuoyRepo;
 use Legenda\NormalSurf\Repositories\WindRepo;
-
+use Legenda\NormalSurf\Infra\Db;
 
 class ImportCC
 {
@@ -16,32 +17,34 @@ class ImportCC
      * Core: DB handle + paths
      * ========================= */
 
-    public static function pdo(): PDO
+public static function pdo(): PDO
+{
+    return Db::get();
+    
+}    public static function paths(): array
     {
-        // config.php must define DB_HOST, DB_NAME, DB_USER, DB_PASS
-        require_once \dirname(__DIR__, 2) . '/config.php';
-
-        return new PDO(
-            "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=utf8mb4",
-            DB_USER,
-            DB_PASS,
-            [
-                PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
-                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-            ]
-        );
-    }
-
-    public static function paths(): array
-    {
-        $root = \realpath(\dirname(__DIR__, 2));
+        $root = \realpath(\dirname(__DIR__, 2)) ?: \getcwd();
 
         return [
-            'root'       => $root,
-            'logs'       => $root . '/logs',
-            'tides_xml'  => $root . '/assets/xml_data/8720587_annual.xml',
-            'waves_dir'  => $root . '/data/wave-forecast',
+            'root'      => $root,
+            'logs'      => $root . '/logs',
+            // kept for parity; CC doesn’t use these directly
+            'tides_xml' => $root . '/assets/xml_data/8720587_annual.xml',
+            'waves_dir' => $root . '/data/wave-forecast',
         ];
+    }
+
+    private static function log(string $msg, string $file = 'cc.log'): void
+    {
+        $paths = self::paths();
+        if (!\is_dir($paths['logs'])) {
+            @\mkdir($paths['logs'], 0775, true);
+        }
+        @\file_put_contents(
+            $paths['logs'] . '/' . $file,
+            '[' . \gmdate('c') . '] ' . $msg . \PHP_EOL,
+            \FILE_APPEND
+        );
     }
 
     /* =========================
@@ -49,110 +52,123 @@ class ImportCC
      * ========================= */
 
     /**
-     * Pulls buoy spectral observations via WaveBuoyRepo and INSERT IGNOREs into station_{id}.
-     * Returns tuple: [PDO $pdo, string $station, array $dataCols, string $colsList, string $table]
+     * Pull buoy spectral observations via WaveBuoyRepo and INSERT IGNORE into station_{id}.
+     * Returns:
+     *  - if $station is array: [$pdo]
+     *  - if $station is string: [$pdo, string $station, array $dataCols, string $colsList, string $table]
      */
-   
-    public static function conn_report(string|array $station = '41112'): array
+    public static function conn_report(string|array $station = '41112', ?PDO $pdo = null): array
     {
-        // If array: import many, return just [$pdo] for compatibility with [$conn] = ...
-        if (is_array($station)) {
-            $pdo = self::pdo(); // new helper you added earlier, or inline your PDO construction
+        $pdo = $pdo ?? self::pdo();
+
+        if (\is_array($station)) {
             foreach ($station as $s) {
                 self::conn_report_one($pdo, (string)$s);
             }
             return [$pdo]; // backward-compatible: first element is PDO
         }
 
-        // Single-station behavior (preserves your previous return shape)
-        $pdo = self::pdo();
-        [$dataCols, $dataRows] = self::fetch_and_filter_station((string)$station); // helper for clarity
-        $table = "station_" . preg_replace('/\D/', '', $station);
+        [$dataCols, $dataRows] = self::fetch_and_filter_station((string)$station);
+        $table = 'station_' . \preg_replace('/\D/', '', $station);
 
-        $insertCols   = array_merge(['ts'], $dataCols);
-        $placeholders = implode(',', array_fill(0, count($insertCols), '?'));
-        $sqlInsert = sprintf(
-            "INSERT IGNORE INTO `%s` (%s) VALUES (%s)",
-            $table,
-            implode(',', $insertCols),
-            $placeholders
-        );
-        $stmt = $pdo->prepare($sqlInsert);
+        $pdo->beginTransaction();
+        try {
+            $insertCols   = \array_merge(['ts'], $dataCols);
+            $placeholders = \implode(',', \array_fill(0, \count($insertCols), '?'));
+            $sqlInsert = \sprintf(
+                'INSERT IGNORE INTO `%s` (%s) VALUES (%s)',
+                $table,
+                \implode(',', $insertCols),
+                $placeholders
+            );
+            $stmt = $pdo->prepare($sqlInsert);
 
-        $inserted = 0;
-        foreach ($dataRows as $row) {
-            $params = [$row['ts']];
-            foreach ($dataCols as $col) {
-                $params[] = $row[$col] ?? null;
+            $inserted = 0;
+            foreach ($dataRows as $row) {
+                $params = [$row['ts']];
+                foreach ($dataCols as $col) {
+                    $params[] = $row[$col] ?? null;
+                }
+                $stmt->execute($params);
+                $inserted += $stmt->rowCount();
             }
-            $stmt->execute($params);
-            $inserted += $stmt->rowCount();
+            $pdo->commit();
+
+            self::log(\sprintf('conn_report station=%s inserted=%d/%d', $station, $inserted, \count($dataRows)), 'conn_report.log');
+        } catch (Throwable $e) {
+            $pdo->rollBack();
+            self::log('conn_report failed: ' . $e->getMessage(), 'conn_report.log');
+            throw $e;
         }
 
-        // Optional breadcrumb
-        @file_put_contents(
-            dirname(__DIR__, 2) . '/logs/conn_report.log',
-            sprintf("[%s] station=%s inserted=%d/%d\n", gmdate('c'), $station, $inserted, count($dataRows)),
-            FILE_APPEND
-        );
-
-        $colsList = implode(',', $dataCols);
+        $colsList = \implode(',', $dataCols);
         return [$pdo, (string)$station, $dataCols, $colsList, $table];
     }
 
     /* =========================
-     * Wind observations → CoOps Wind Stations
+     * Wind observations → Co-OPS/NDBC
      * ========================= */
 
-    public static function conn_winds(string|array $stations = ['8720030', '8720218', 'SAUF1'], ?int $ttlSec = null): array
-    {
-        $pdo = self::pdo();
+    /**
+     * @param string[]|string $stations e.g. ['8720030','8720218','SAUF1']
+     * @param int|null        $ttlSec   skip if refreshed within this many seconds
+     * @param PDO|null        $pdo      reuse caller's PDO if provided
+     * @return array          [$pdo, $counts|['skipped'=>true]]
+     */
+    public static function conn_winds(
+        string|array $stations = ['8720030', '8720218', 'SAUF1'],
+        ?int $ttlSec = null,
+        ?PDO $pdo = null
+    ): array {
+        $pdo = $pdo ?? self::pdo();
 
-        // TTL guard (optional): skip if recently refreshed
+        // TTL guard
         if ($ttlSec !== null) {
-            $root = \realpath(\dirname(__DIR__, 2));
-            $flag = $root . '/.ns_winds.flag';
-            $stale = !\is_file($flag) || (time() - \filemtime($flag) > $ttlSec);
+            $root  = \realpath(\dirname(__DIR__, 2)) ?: \getcwd();
+            $flag  = $root . '/.ns_winds.flag';
+            $stale = !\is_file($flag) || (\time() - \filemtime($flag) > $ttlSec);
             if (!$stale) {
                 return [$pdo, ['skipped' => true]];
             }
             @\touch($flag);
         }
 
-        $list = \is_array($stations) ? $stations : [$stations];
+        $list   = \is_array($stations) ? $stations : [$stations];
         $counts = WindRepo::refreshMany($pdo, $list);
 
-        // tiny breadcrumb (non-fatal if logs/ missing)
-        $logs = self::paths()['logs'] ?? (\realpath(\dirname(__DIR__, 2)) . '/logs');
+        $logs = self::paths()['logs'] ?? (($root ?? \getcwd()) . '/logs');
         @\mkdir($logs, 0775, true);
         @\file_put_contents(
             $logs . '/conn_winds.log',
-            '[' . \gmdate('c') . '] ' . json_encode(['stations' => $list, 'counts' => $counts]) . "\n",
+            '[' . \gmdate('c') . '] ' . \json_encode(['stations' => $list, 'counts' => $counts]) . \PHP_EOL,
             \FILE_APPEND
         );
 
         return [$pdo, $counts];
     }
 
-    /* Helpers to keep things tidy. If you don’t like helpers, inline in conn_report(). */
+    /* =========================
+     * Helpers
+     * ========================= */
+
     private static function fetch_and_filter_station(string $station): array
     {
-        $raw   = WaveBuoyRepo::get_data($station);
-        $data  = SpectralDataParser::filter($raw);
+        $raw  = WaveBuoyRepo::get_data($station);
+        $data = SpectralDataParser::filter($raw);
         return [$data['columns'], $data['data']];
     }
 
-    private static function conn_report_one(\PDO $pdo, string $station): void
+    private static function conn_report_one(PDO $pdo, string $station): void
     {
         [$dataCols, $dataRows] = self::fetch_and_filter_station($station);
-        $table = "station_" . preg_replace('/\D/', '', $station);
+        $table = 'station_' . \preg_replace('/\D/', '', $station);
 
-        $insertCols   = array_merge(['ts'], $dataCols);
-        $placeholders = implode(',', array_fill(0, count($insertCols), '?'));
-        $sqlInsert = sprintf(
-            "INSERT IGNORE INTO `%s` (%s) VALUES (%s)",
+        $insertCols   = \array_merge(['ts'], $dataCols);
+        $placeholders = \implode(',', \array_fill(0, \count($insertCols), '?'));
+        $sqlInsert = \sprintf(
+            'INSERT IGNORE INTO `%s` (%s) VALUES (%s)',
             $table,
-            implode(',', $insertCols),
+            \implode(',', $insertCols),
             $placeholders
         );
         $stmt = $pdo->prepare($sqlInsert);
@@ -164,7 +180,6 @@ class ImportCC
             }
             $stmt->execute($params);
         }
-        
     }
 
     public static function winds_latest(PDO $pdo, string $stationCode): ?array

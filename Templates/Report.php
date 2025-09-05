@@ -5,9 +5,6 @@ declare(strict_types=1);
 namespace Legenda\NormalSurf\Templates;
 
 use PDO;
-use DateTime;
-use DateTimeZone;
-
 use Legenda\NormalSurf\Repositories\StationRepo;
 use Legenda\NormalSurf\BatchProcessing\ImportCC;
 use Legenda\NormalSurf\Hooks\WaveCell;
@@ -15,19 +12,14 @@ use Legenda\NormalSurf\Hooks\TideCell;
 use Legenda\NormalSurf\Hooks\WindCell;
 use Legenda\NormalSurf\Hooks\SpotSelector;
 use Legenda\NormalSurf\Helpers\Format;
-use Legenda\NormalSurf\Utilities\WavePreference;
 use Legenda\NormalSurf\Utilities\ForecastPreference;
+use Legenda\NormalSurf\Infra\Db;
 
-
-/**
- * View-model builder for index.php
- * - Preferences (Wave/Tide/Wind) compute raw values upstream.
- * - SpotSelector gates & returns presentation-free rows.
- * - Cells (WaveCell/TideCell/…) format here in Report for consistent UI.
- */
 final class Report
 {
-    private PDO $pdo;
+    /** Single, central PDO for all DB work in this request/CLI run */
+    private readonly PDO $pdo;
+
     private StationRepo $stations;
     private WaveCell $waveCell;
     private TideCell $tideCell;
@@ -42,29 +34,24 @@ final class Report
     private const WIND_STATION_BY_KEY = [
         '41112'  => '8720030', // Fernandina
         'median' => '8720218', // Mayport / St. Johns Entrance
-        '41117'  => 'SAUF1', // St. Augustine
+        '41117'  => 'SAUF1',   // St. Augustine
     ];
 
+    public function __construct(?PDO $pdo = null)
+    {
+        // One PDO to rule them all
+        $this->pdo = $pdo ?? Db::get();
 
-public function __construct(?PDO $pdo = null)
-{
-    if ($pdo instanceof PDO) {
-        $this->pdo = $pdo;
-    } else {
-        // Import buoy obs and get PDO
-        [$conn] = ImportCC::conn_report(['41112','41117']); // import both buoys
-        $this->pdo = $conn;
+        // Upstream side effects (explicitly use the same PDO)
+        ImportCC::conn_report(['41112', '41117'], $this->pdo);
+        ImportCC::conn_winds(['8720030', '8720218', 'SAUF1'], 300, $this->pdo);
 
-        // 🔹 Kick winds the same way (CO-OPS + NDBC), with a short TTL so you don't hammer APIs
-        // CO-OPS numeric stations and NDBC alpha codes you care about:
-       ImportCC::conn_winds(['8720030','8720218','SAUF1'], 300);
+        // Repos/cells wired to the same PDO as needed
+        $this->stations = new StationRepo($this->pdo);
+        $this->waveCell = new WaveCell();
+        $this->tideCell = new TideCell($this->pdo);
+        $this->selector = new SpotSelector($this->pdo);
     }
-
-    $this->stations = new StationRepo($this->pdo);
-    $this->waveCell = new WaveCell();
-    $this->tideCell = new TideCell($this->pdo);
-    $this->selector = new SpotSelector();
-}
 
     private static function tideStationIdForKey(int|string $key): ?string
     {
@@ -77,7 +64,6 @@ public function __construct(?PDO $pdo = null)
         $k = (string)$key;
         return self::WIND_STATION_BY_KEY[$k] ?? null;
     }
-
 
     /** Mean of shared numeric columns for a “median” buoy row. */
     private function midpoint(array $a, array $b): array
@@ -125,16 +111,16 @@ public function __construct(?PDO $pdo = null)
         foreach ($rows as $k => $r) {
             $tid = self::tideStationIdForKey($k);
 
-            // Wave: format from buoy row (includes dominant-period logic via WavePeriod)
+            // Wave: format from buoy row
             $rows[$k]['wave_cell'] = $this->waveCell->cellFromBuoyRow($r['data']);
 
-            // Tide: current label + next peak info
+            // Tide: current + next peak
             $rows[$k]['tide_label_current'] = $tid ? $this->tideCell->currentLabel($tid, $nowUtc) : '—';
-
             $info = $tid ? $this->tideCell->nextPeakInfo($tid, $nowUtc, $tz) : null;
             $rows[$k]['tide_next_at']  = $info['row_label'] ?? '—';
             $rows[$k]['_next_minutes'] = $info['minutes']   ?? null;
 
+            // Wind (latest obs)
             $wcode = self::windStationCodeForKey($k);
             if ($wcode) {
                 $w = ImportCC::winds_latest($this->pdo, $wcode);
@@ -190,7 +176,7 @@ public function __construct(?PDO $pdo = null)
         if (!$r12) $r12 = $r17;
         if (!$r17) $r17 = $r12;
 
-        $results = $this->selector->select($this->pdo, $r12, $r17);
+        $results = $this->selector->select($r12, $r17);
         if (empty($results)) {
             return [
                 'header_hm' => $headerHm,
@@ -206,7 +192,6 @@ public function __construct(?PDO $pdo = null)
         foreach ($results as $r) {
             $name = $r['spot_name'] ?? $r['name'] ?? 'Unnamed Spot';
 
-            // Build wave cell from normalized DTO (realtime selection output)
             $waveCell = $this->waveCell->cellFromDTO([
                 'hs_m'    => $r['hs_m']    ?? null,
                 'per_s'   => $r['per_s']   ?? ($r['dominant_period']   ?? null),
@@ -217,13 +202,12 @@ public function __construct(?PDO $pdo = null)
                 'name'      => $name,
                 'wave_cell' => $waveCell ?? '&mdash;',
                 'tide'      => $tide,
-                'wind'      => $r['wind'] ?? '—',   // wire later
+                'wind'      => $r['wind'] ?? '—',
             ];
 
             (($r['list_bucket'] ?? '2') === '1') ? $best[] = $row : $others[] = $row;
         }
 
-        // stable order
         usort($best, static fn($a, $b) => strcmp($a['name'], $b['name']));
         usort($others, static fn($a, $b) => strcmp($a['name'], $b['name']));
 
@@ -239,13 +223,13 @@ public function __construct(?PDO $pdo = null)
     // ——————————————————————————————————————————————————————————
     public function whereToSurfLaterTodayView(string $tz = 'America/New_York'): array
     {
-        $rows   = $this->selector->selectForecastLaterToday($this->pdo);
-        $nowUtc = Format::UTC_time(); // once per view
+        $rows = $this->selector->selectForecastLaterToday();
+        $rows = $this->selector->selectForecastTomorrow();
+        $nowUtc = Format::UTC_time();
 
         foreach ($rows as &$r) {
-
             $r['wave_cell'] = $this->waveCell->cellFromForecastRow($r);
-            $r['tide'] = $this->tideCell->prefCellFromSelectorRow($r, $nowUtc, $tz, 'later');
+            $r['tide']      = $this->tideCell->prefCellFromSelectorRow($r, $nowUtc, $tz, 'later');
             $r['wind']      = $r['wind'] ?? '—';
         }
         unset($r);
@@ -264,11 +248,11 @@ public function __construct(?PDO $pdo = null)
     public function whereToSurfTomorrowView(string $tz = 'America/New_York'): array
     {
         $rows   = $this->selector->selectForecastTomorrow($this->pdo);
-        $nowUtc = Format::UTC_time(); // once per view
+        $nowUtc = Format::UTC_time();
 
         foreach ($rows as &$r) {
             $r['wave_cell'] = $this->waveCell->cellFromForecastRow($r);
-            $r['tide'] = $this->tideCell->prefCellFromSelectorRow($r, $nowUtc, $tz, 'later');
+            $r['tide']      = $this->tideCell->prefCellFromSelectorRow($r, $nowUtc, $tz, 'later');
             $r['wind']      = $r['wind'] ?? '—';
         }
         unset($r);
@@ -280,25 +264,25 @@ public function __construct(?PDO $pdo = null)
             'rows'        => $rows,
         ];
     }
+
     // ——————————————————————————————————————————————————————————
-    // Forecast
+    // Forecast (72h)
     // ——————————————————————————————————————————————————————————
     public function forecast72hView(string $tz = 'America/New_York'): array
     {
         $nowUtc = Format::UTC_time();
 
-        // need base station coords for the zones + interpolation
         $c12 = $this->stations->coords('41112');
         $c17 = $this->stations->coords('41117');
         if (!$c12 || !$c17) return ['stations' => []];
-        $coordsMany = $this->stations->coordsMany(['41112', '41117']); // used by sampler
+        $coordsMany = $this->stations->coordsMany(['41112', '41117']);
 
         $zones = [
             '41112'  => [
                 'label'        => 'St. Marys Entrance',
                 'coord'        => $c12,
                 'tide_station' => self::TIDE_STATION_BY_KEY['41112'] ?? null,
-                'wind_key'     => '41112',        // <— NEW
+                'wind_key'     => '41112',
             ],
             'median' => [
                 'label'        => 'St. Johns Entrance*',
@@ -307,13 +291,13 @@ public function __construct(?PDO $pdo = null)
                     'lon' => ($c12['lon'] + $c17['lon']) / 2
                 ],
                 'tide_station' => self::TIDE_STATION_BY_KEY['median'] ?? null,
-                'wind_key'     => 'median',       // <— NEW
+                'wind_key'     => 'median',
             ],
             '41117'  => [
                 'label'        => 'St. Augustine',
                 'coord'        => $c17,
                 'tide_station' => self::TIDE_STATION_BY_KEY['41117'] ?? null,
-                'wind_key'     => '41117',        // <— NEW
+                'wind_key'     => '41117',
             ],
         ];
 
@@ -330,26 +314,25 @@ public function __construct(?PDO $pdo = null)
                 ['41112', '41117'],
                 72,
                 12,
-                $z['wind_key'] ?? null   // <— pass wind key
+                $z['wind_key'] ?? null
             );
 
             $rows = [];
             foreach ($samples as $s) {
-                // format wind label (can be '—' if nulls)
                 $windLabel = WindCell::format(
                     isset($s['wind_dir']) ? (int)$s['wind_dir'] : null,
                     isset($s['wind_kt'])  ? (float)$s['wind_kt']  : null
                 );
 
                 $rows[] = [
-                    'when' => Format::toLocalTime($s['t_utc'], $tz),
+                    'when'      => Format::toLocalTime($s['t_utc'], $tz),
                     'wave_cell' => $this->waveCell->cellFromDTO([
                         'hs_m'    => $s['hs_m'],
                         'per_s'   => $s['per_s'],
                         'dir_deg' => $s['dir_deg'],
                     ]),
                     'tide'      => ($s['hl_type'] === 'H') ? 'High' : 'Low',
-                    'wind'      => $windLabel,  // <— NEW
+                    'wind'      => $windLabel,
                 ];
             }
 

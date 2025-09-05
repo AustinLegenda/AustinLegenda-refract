@@ -1,76 +1,36 @@
 <?php
-
 declare(strict_types=1);
 
 namespace Legenda\NormalSurf\BatchProcessing;
 
 use PDO;
 use Throwable;
-
+use Legenda\NormalSurf\Infra\Db;
 use Legenda\NormalSurf\Repositories\TideRepo;
 use Legenda\NormalSurf\Repositories\WaveForecastRepo;
 use Legenda\NormalSurf\Repositories\WindForecastRepo;
 
-
 final class ImportFC
 {
-    /** Create a PDO using constants from config.php */
-public static function pdo(): PDO
-{
-    require_once \dirname(__DIR__, 2) . '/config.php';
-
-    // Build a CLI-safe DSN that honors port/socket
-    $dsn = 'mysql:';
-    if (defined('DB_SOCKET') && DB_SOCKET) {
-        $dsn .= 'unix_socket=' . DB_SOCKET . ';';
-    } else {
-        $dsn .= 'host=' . DB_HOST . ';';
-        $dsn .= 'port=' . (defined('DB_PORT') ? DB_PORT : '3306') . ';';
+    /** Single source of truth for PDO */
+    public static function pdo(): PDO
+    {
+        return Db::get();
     }
-    $dsn .= 'dbname=' . DB_NAME . ';charset=utf8mb4';
 
-    return new PDO(
-        $dsn,
-        DB_USER,
-        DB_PASS,
-        [
-            PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-        ]
-    );
-}
-
-    /** Resolve common paths used by the batch job */
+    /** Common paths */
     public static function paths(): array
     {
         $root = \realpath(\dirname(__DIR__, 2)) ?: \getcwd();
-
         return [
-            'root'       => $root,
-            'logs'       => $root . '/logs',
-            // Default example file; override via options if different:
-            'tides_xml'  => $root . '/assets/xml_data/8720587_annual.xml',
-            'waves_dir'  => $root . '/data/wave-forecast',
+            'root'      => $root,
+            'logs'      => $root . '/logs',
+            'tides_xml' => $root . '/assets/xml_data/8720587_annual.xml',
+            'waves_dir' => $root . '/Forecast/src/data/wave-forecast',
         ];
     }
 
-    private static function log(string $msg): void
-    {
-        $paths = self::paths();
-        if (!\is_dir($paths['logs'])) {
-            @\mkdir($paths['logs'], 0775, true);
-        }
-        @\file_put_contents(
-            $paths['logs'] . '/refresh_all.log',
-            '[' . \gmdate('c') . '] ' . $msg . PHP_EOL,
-            \FILE_APPEND
-        );
-    }
-
-    /* =========================
-     * Tides import (annual XML) → tides_{station}
-     * ========================= */
-
+    /** Tides */
     public static function import_tides_from_xml(PDO $pdo, string $xmlPath, ?string $tableName = null): string
     {
         return TideRepo::importAnnualHLXml($pdo, $xmlPath, $tableName);
@@ -78,36 +38,20 @@ public static function pdo(): PDO
 
     public static function tides_window(PDO $pdo, string $stationId, string $nowUtc): array
     {
-        $prev = TideRepo::getPrevHL($pdo, $stationId, $nowUtc);
-        $next = TideRepo::getNextHL($pdo, $stationId, $nowUtc, 2);
-        return [$prev, $next];
+        return [
+            TideRepo::getPrevHL($pdo, $stationId, $nowUtc),
+            TideRepo::getNextHL($pdo, $stationId, $nowUtc, 2),
+        ];
     }
 
-    public static function tides_window_by_table(PDO $pdo, string $table, string $nowUtc): array
+    /** Waves */
+    public static function import_waves_from_json(PDO $pdo, string $jsonPath, ?string $tableName = null, string $localTz = 'America/New_York'): string
     {
-        $prev = TideRepo::getPrevHLByTable($pdo, $table, $nowUtc);
-        $next = TideRepo::getNextHLByTable($pdo, $table, $nowUtc, 2);
-        return [$prev, $next];
-    }
-
-    /* =========================
-     * Wave forecast (JSON files) → waves_{station}
-     * ========================= */
-
-    public static function import_waves_from_json(
-        PDO $pdo,
-        string $jsonPath,
-        ?string $tableName = null,
-        string $localTz = 'America/New_York'
-    ): string {
         return WaveForecastRepo::importJson($pdo, $jsonPath, $tableName, $localTz);
     }
 
-    public static function import_waves_from_dir(
-        PDO $pdo,
-        string $dirPath,
-        string $localTz = 'America/New_York'
-    ): array {
+    public static function import_waves_from_dir(PDO $pdo, string $dirPath, string $localTz = 'America/New_York'): array
+    {
         return WaveForecastRepo::importDirectory($pdo, $dirPath, $localTz);
     }
 
@@ -121,24 +65,12 @@ public static function pdo(): PDO
         return WaveForecastRepo::getPrev($pdo, $stationId, $nowUtc);
     }
 
-    public static function waves_range(
-        PDO $pdo,
-        string $stationId,
-        string $startUtc,
-        string $endUtc,
-        int $limit = 500
-    ): array {
+    public static function waves_range(PDO $pdo, string $stationId, string $startUtc, string $endUtc, int $limit = 500): array
+    {
         return WaveForecastRepo::getRange($pdo, $stationId, $startUtc, $endUtc, $limit);
     }
 
-
-    /* =========================
-     * Wind forecast → winds_fcst_{key}
-     * ========================= */
-
-    /**
-     * $defs = [['key'=>'41112','office'=>'JAX','x'=>71,'y'=>80], ...]
-     */
+    /** Winds forecast */
     public static function winds_fcst_refresh(PDO $pdo, array $defs): array
     {
         return WindForecastRepo::refreshMany($pdo, $defs);
@@ -149,26 +81,17 @@ public static function pdo(): PDO
         return WindForecastRepo::latest($pdo, $key);
     }
 
-    public static function winds_fcst_range(
-        PDO $pdo,
-        string $key,
-        string $startUtc,
-        string $endUtc,
-        int $limit = 2000
-    ): array {
+    public static function winds_fcst_range(PDO $pdo, string $key, string $startUtc, string $endUtc, int $limit = 2000): array
+    {
         return WindForecastRepo::range($pdo, $key, $startUtc, $endUtc, $limit);
     }
 
-    /* =========================
-     * Orchestrator
-     * ========================= */
-
+    /** Orchestrator */
     public static function refresh_all(array $opts = []): array
     {
-        $t0  = \microtime(true);
+        $t0 = \microtime(true);
         $out = [];
 
-        // Ensure logs dir exists
         $paths = self::paths();
         if (!\is_dir($paths['logs'])) {
             @\mkdir($paths['logs'], 0775, true);
@@ -176,7 +99,7 @@ public static function pdo(): PDO
 
         $pdo = $opts['pdo'] ?? self::pdo();
 
-        // --- Tides (annual XML) ---
+        // Tides
         try {
             $tidesXml = $opts['tides_xml'] ?? $paths['tides_xml'];
             if ($tidesXml && \is_file($tidesXml)) {
@@ -189,7 +112,7 @@ public static function pdo(): PDO
             $out['tides_error'] = $e->getMessage();
         }
 
-        // --- Wave forecast (JSON dir) ---
+        // Waves
         try {
             $wavesDir = $opts['waves_dir'] ?? $paths['waves_dir'];
             if ($wavesDir && \is_dir($wavesDir)) {
@@ -202,7 +125,7 @@ public static function pdo(): PDO
             $out['waves_error'] = $e->getMessage();
         }
 
-        // --- Wind forecast (NWS gridpoint) ---
+        // Winds
         try {
             $defs = $opts['winds_fcst_defs'] ?? [
                 ['key' => '41112',  'office' => 'JAX', 'x' => 71, 'y' => 80],
@@ -217,10 +140,16 @@ public static function pdo(): PDO
             $out['winds_fcst_error'] = $e->getMessage();
         }
 
-
-        $dt = \sprintf('%.2fs', \microtime(true) - $t0);
-        self::log("refresh_all OK ($dt)");
-
+        self::log("refresh_all OK (" . \sprintf('%.2fs', \microtime(true) - $t0) . ")");
         return $out;
+    }
+
+    private static function log(string $msg): void
+    {
+        $paths = self::paths();
+        if (!\is_dir($paths['logs'])) {
+            @\mkdir($paths['logs'], 0775, true);
+        }
+        @\file_put_contents($paths['logs'] . '/refresh_all.log', '[' . \gmdate('c') . '] ' . $msg . PHP_EOL, \FILE_APPEND);
     }
 }

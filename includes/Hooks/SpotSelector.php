@@ -1,5 +1,4 @@
 <?php
-
 declare(strict_types=1);
 
 namespace Legenda\NormalSurf\Hooks;
@@ -7,7 +6,7 @@ namespace Legenda\NormalSurf\Hooks;
 use PDO;
 use DateTime;
 use DateTimeZone;
-
+use Legenda\NormalSurf\Infra\Db;
 use Legenda\NormalSurf\Helpers\Maths;
 use Legenda\NormalSurf\Utilities\TidePreference;
 use Legenda\NormalSurf\Utilities\TidePhase;
@@ -17,32 +16,31 @@ use Legenda\NormalSurf\Repositories\StationRepo;
 
 final class SpotSelector
 {
-
+    private readonly PDO $pdo;
     private TidePreference $tidePrefs;
-    public function __construct(?TidePreference $tidePrefs = null)
+
+    public function __construct(?PDO $pdo = null, ?TidePreference $tidePrefs = null)
     {
+        $this->pdo       = $pdo ?? Db::get();                          // central PDO
         $this->tidePrefs = $tidePrefs ?? new TidePreference(new TidePhase());
     }
 
     /** Return true if a UTC timestamp falls in the disallowed local window (21:30–04:30). */
     private function isLocalDisallowed(string $utcTs, string $tz = 'America/New_York'): bool
     {
-        $dt = new \DateTime($utcTs, new \DateTimeZone('UTC'));
-        $dt->setTimezone(new \DateTimeZone($tz));
-        // HHMM as integer for easy comparison (e.g., 21:45 -> 2145)
-        $hhmm = (int)$dt->format('Hi');
-
-        // Window crosses midnight: [21:30, 24:00) ∪ [00:00, 04:30)
+        $dt = new DateTime($utcTs, new DateTimeZone('UTC'));
+        $dt->setTimezone(new DateTimeZone($tz));
+        $hhmm = (int)$dt->format('Hi'); // e.g., 21:45 -> 2145
         return ($hhmm >= 2130) || ($hhmm < 430);
     }
 
-
-    public function select(PDO $pdo, array $data1, array $data2): array
+    /** Where To Surf Now (realtime) */
+    public function select(array $data1, array $data2): array
     {
         $rows = [];
 
         // candidate spots
-        $stmtSpots = $pdo->query("
+        $stmtSpots = $this->pdo->query("
             SELECT
                 s.id, s.spot_name,
                 r.region_lat, r.region_lon,
@@ -52,46 +50,35 @@ final class SpotSelector
             FROM surf_spots AS s
             INNER JOIN regions AS r ON s.regional_id = r.id
         ");
-        $spots = $stmtSpots->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $spots = $stmtSpots->fetchAll() ?: [];
 
         // station coords
-        $stations = new StationRepo($pdo);
+        $stations = new StationRepo($this->pdo);
         $c12 = $stations->coords('41112');
         $c17 = $stations->coords('41117');
-        if (!$c12 || !$c17) {
-            return [];
-        }
+        if (!$c12 || !$c17) return [];
 
         // canonical UTC now
         $nowUtc = (new DateTime('now', new DateTimeZone('UTC')))->format('Y-m-d H:i:00');
-        if ($this->isLocalDisallowed($nowUtc, 'America/New_York')) {
-            return []; // entirely excluded in this window
-        }
+        if ($this->isLocalDisallowed($nowUtc, 'America/New_York')) return [];
 
         foreach ($spots as $spot) {
             // wave gate
             $W = WavePreference::realtimeForSpot($spot, $data1, $data2, $c12, $c17);
-            if (!$W['ok']) {
-                // (optional) capture gated reasons to help debug UI
-                // e.g., echo "<!-- {$spot['spot_name']} gated: {$W['gate_reason']} -->\n";
-                continue;
-            }
+            if (!$W['ok']) continue;
 
             // tide gate
-            $tp = $this->tidePrefs->tidePrefMatch($pdo, $spot, $nowUtc, 60);
+            $tp = $this->tidePrefs->tidePrefMatch($this->pdo, $spot, $nowUtc, 60);
 
             $hasPrefs = !empty($spot['H_tide']) || !empty($spot['M_plus_tide']) ||
-                !empty($spot['M_minus_tide']) || !empty($spot['L_tide']);
+                        !empty($spot['M_minus_tide']) || !empty($spot['L_tide']);
 
             $tideOk = $hasPrefs && !empty($tp['ok']);
             $listBucket = $tideOk ? '1' : '2';
 
-            $listBucket = (!empty($tp['ok']) && $hasPrefs) ? '1' : '2';
-
-            //wind
+            // wind
             $windKey = WindPreference::keyForSpot($spot, $c12, $c17);
-            $wObs = WindPreference::realtimeForKey($pdo, $windKey, $spot);
-
+            $wObs    = WindPreference::realtimeForKey($this->pdo, $windKey, $spot);
 
             $rows[] = [
                 'spot_id'   => $spot['id'],
@@ -109,43 +96,40 @@ final class SpotSelector
                 'dist_41117'       => $W['dist_41117'],
 
                 // tide raw fields for TideCell formatter
-                'tide'                  => $tp['tide_reason'] ?? $tp['next_pref'] ?? $tp['next_marker'] ?? '—',
-                'phase_code'            => $tp['tide_reason'] ?? $tp['next_pref'] ?? $tp['next_marker'] ?? null,
-                'phase_time_utc'        => $tp['tide_reason_utc'] ?? $tp['next_pref_utc'] ?? $tp['next_marker_utc'] ?? null,
+                'tide'                   => $tp['tide_reason'] ?? $tp['next_pref'] ?? $tp['next_marker'] ?? '—',
+                'phase_code'             => $tp['tide_reason'] ?? $tp['next_pref'] ?? $tp['next_marker'] ?? null,
+                'phase_time_utc'         => $tp['tide_reason_utc'] ?? $tp['next_pref_utc'] ?? $tp['next_marker_utc'] ?? null,
                 'closest_pref_delta_min' => $tp['closest_pref_delta_min'] ?? null,
-                'next_pref'             => $tp['next_pref'] ?? null,
-                'next_pref_utc'         => $tp['next_pref_utc'] ?? null,
-                'next_marker'           => $tp['next_marker'] ?? null,
-                'next_marker_utc'       => $tp['next_marker_utc'] ?? null,
+                'next_pref'              => $tp['next_pref'] ?? null,
+                'next_pref_utc'          => $tp['next_pref_utc'] ?? null,
+                'next_marker'            => $tp['next_marker'] ?? null,
+                'next_marker_utc'        => $tp['next_marker_utc'] ?? null,
 
                 'has_tide_prefs' => $hasPrefs,
                 'tide_ok'        => $tideOk,
 
                 // decision
                 'list_bucket' => $listBucket,
-                'wind' => $wObs['label'] ?? '—',
+                'wind'        => $wObs['label'] ?? '—',
             ];
         }
 
         return $rows;
     }
 
-    /**
-     * Forecast-driven selection for "Where To Surf Later Today".
-     * Lean on WavePreference + TidePreference.
-     */
-    public function selectForecastLaterToday(PDO $pdo): array
+    /** Forecast-driven selection for "Where To Surf Later Today". */
+    public function selectForecastLaterToday(): array
     {
-        $stmt = $pdo->query("
+        $stmt = $this->pdo->query("
             SELECT s.*, r.region_lat, r.region_lon
             FROM surf_spots AS s
             INNER JOIN regions AS r ON s.regional_id = r.id
             ORDER BY s.spot_name ASC, s.id ASC
         ");
-        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $rows = $stmt->fetchAll() ?: [];
         if (!$rows) return [];
 
-        $stations = new StationRepo($pdo);
+        $stations = new StationRepo($this->pdo);
         $coords   = $stations->coordsMany(['41112', '41117']);
         if (count($coords) < 2) return [];
 
@@ -157,39 +141,29 @@ final class SpotSelector
 
         $nowUtc = (new DateTime('now', new DateTimeZone('UTC')))->format('Y-m-d H:i:00');
 
-        $bestByName = []; // name => ['row'=>raw, 'score'=>float]
+        $bestByName = [];
 
         foreach ($rows as $spot) {
             $name  = $spot['spot_name'] ?? 'Unknown spot';
-            $tp    = $this->tidePrefs->tidePrefMatch($pdo, $spot, $nowUtc, 60);
+            $tp    = $this->tidePrefs->tidePrefMatch($this->pdo, $spot, $nowUtc, 60);
             $delta = $tp['closest_pref_delta_min'] ?? null;
 
-            if ($delta === null || $delta < 0 || $delta > $minsLeft) {
-                // gated: no preferred tide in remainder of day
-                continue;
-            }
+            if ($delta === null || $delta < 0 || $delta > $minsLeft) continue;
 
             $targetUtc = (new DateTime($nowUtc, new DateTimeZone('UTC')))
                 ->modify('+' . (int)$delta . ' minutes')
                 ->format('Y-m-d H:i:00');
 
-            // Hard gate by local time
-            if ($this->isLocalDisallowed($targetUtc, 'America/New_York')) {
-                continue; // skip this candidate
-            }
+            if ($this->isLocalDisallowed($targetUtc, 'America/New_York')) continue;
 
-            $WF = WavePreference::forecastForSpot($pdo, $spot, $targetUtc, $coords, ['41112', '41117']);
-            if (!$WF['ok']) {
-                continue;
-            }
+            $WF = WavePreference::forecastForSpot($this->pdo, $spot, $targetUtc, $coords, ['41112', '41117']);
+            if (!$WF['ok']) continue;
 
             $windKey = WindPreference::keyForSpot($spot, $coords['41112'], $coords['41117']);
-            $wFcst = WindPreference::forecastForKeyAt($pdo, $windKey, $targetUtc, $spot);
+            $wFcst   = WindPreference::forecastForKeyAt($this->pdo, $windKey, $targetUtc, $spot);
 
             $tideCode = $tp['next_pref'] ?? $tp['closest_pref'] ?? $tp['next_marker'] ?? null;
-            if (!TidePreference::allowPhase($spot, $tideCode)) {
-                continue;
-            }
+            if (!TidePreference::allowPhase($spot, $tideCode)) continue;
 
             $pmin = isset($spot['period_min']) ? (float)$spot['period_min'] : null;
             $pmax = isset($spot['period_max']) ? (float)$spot['period_max'] : null;
@@ -203,12 +177,11 @@ final class SpotSelector
                 'hs_m'      => $WF['hs_m'],
                 'per_s'     => $WF['per_s'],
                 'dir_deg'   => $WF['dir_deg'],
-                'tide'                  => $tideCode ?? '—',
-                'wind' => $wFcst['label'] ?? '—',
-                'phase_code'            => $tideCode,
-                'phase_time_utc'        => $tp['next_pref_utc'] ?? $tp['next_marker_utc'] ?? null,
+                'tide'                   => $tideCode ?? '—',
+                'wind'                   => $wFcst['label'] ?? '—',
+                'phase_code'             => $tideCode,
+                'phase_time_utc'         => $tp['next_pref_utc'] ?? $tp['next_marker_utc'] ?? null,
                 'closest_pref_delta_min' => $tp['closest_pref_delta_min'] ?? null,
-
             ];
 
             if (!isset($bestByName[$name]) || $score < $bestByName[$name]['score']) {
@@ -221,21 +194,19 @@ final class SpotSelector
         return $out;
     }
 
-    /**
-     * Forecast-driven selection for "Where To Surf Tomorrow".
-     */
-    public function selectForecastTomorrow(PDO $pdo): array
+    /** Forecast-driven selection for "Where To Surf Tomorrow". */
+    public function selectForecastTomorrow(): array
     {
-        $stmt = $pdo->query("
+        $stmt = $this->pdo->query("
             SELECT s.*, r.region_lat, r.region_lon
             FROM surf_spots AS s
             INNER JOIN regions AS r ON s.regional_id = r.id
             ORDER BY s.spot_name ASC, s.id ASC
         ");
-        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $rows = $stmt->fetchAll() ?: [];
         if (!$rows) return [];
 
-        $stations = new StationRepo($pdo);
+        $stations = new StationRepo($this->pdo);
         $coords   = $stations->coordsMany(['41112', '41117']);
         if (count($coords) < 2) return [];
 
@@ -248,34 +219,25 @@ final class SpotSelector
 
         foreach ($rows as $spot) {
             $name  = $spot['spot_name'] ?? 'Unknown spot';
-            $tp    = $this->tidePrefs->tidePrefMatch($pdo, $spot, $pivotUtc, 60);
+            $tp    = $this->tidePrefs->tidePrefMatch($this->pdo, $spot, $pivotUtc, 60);
             $delta = $tp['closest_pref_delta_min'] ?? null;
 
-            if ($delta === null || $delta < 0 || $delta >= 24 * 60) {
-                continue;
-            }
+            if ($delta === null || $delta < 0 || $delta >= 24 * 60) continue;
 
             $targetUtc = (new DateTime($pivotUtc, new DateTimeZone('UTC')))
                 ->modify('+' . (int)$delta . ' minutes')
                 ->format('Y-m-d H:i:00');
 
-            // Hard gate by local time
-            if ($this->isLocalDisallowed($targetUtc, 'America/New_York')) {
-                continue; // skip this candidate
-            }
+            if ($this->isLocalDisallowed($targetUtc, 'America/New_York')) continue;
 
-            $WF = WavePreference::forecastForSpot($pdo, $spot, $targetUtc, $coords, ['41112', '41117']);
-            if (!$WF['ok']) {
-                continue;
-            }
+            $WF = WavePreference::forecastForSpot($this->pdo, $spot, $targetUtc, $coords, ['41112', '41117']);
+            if (!$WF['ok']) continue;
 
             $windKey = WindPreference::keyForSpot($spot, $coords['41112'], $coords['41117']);
-            $wFcst = WindPreference::forecastForKeyAt($pdo, $windKey, $targetUtc, $spot);
+            $wFcst   = WindPreference::forecastForKeyAt($this->pdo, $windKey, $targetUtc, $spot);
 
             $tideCode = $tp['next_pref'] ?? $tp['closest_pref'] ?? $tp['next_marker'] ?? null;
-            if (!TidePreference::allowPhase($spot, $tideCode)) {
-                continue;
-            }
+            if (!TidePreference::allowPhase($spot, $tideCode)) continue;
 
             $pmin = isset($spot['period_min']) ? (float)$spot['period_min'] : null;
             $pmax = isset($spot['period_max']) ? (float)$spot['period_max'] : null;
@@ -289,12 +251,11 @@ final class SpotSelector
                 'hs_m'      => $WF['hs_m'],
                 'per_s'     => $WF['per_s'],
                 'dir_deg'   => $WF['dir_deg'],
-                'tide'                  => $tideCode ?? '—',
-                'wind' => $wFcst['label'] ?? '—',
-                'phase_code'     => $tideCode,
-                'phase_time_utc' => $tp['next_pref_utc'] ?? $tp['next_marker_utc'] ?? null,
+                'tide'                   => $tideCode ?? '—',
+                'wind'                   => $wFcst['label'] ?? '—',
+                'phase_code'             => $tideCode,
+                'phase_time_utc'         => $tp['next_pref_utc'] ?? $tp['next_marker_utc'] ?? null,
                 'closest_pref_delta_min' => $tp['closest_pref_delta_min'] ?? null,
-
             ];
 
             if (!isset($bestByName[$name]) || $score < $bestByName[$name]['score']) {
