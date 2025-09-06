@@ -559,3 +559,83 @@ Stack trace:
         "41117": 181
     }
 }
+{
+    "tides": "tides_8720587",
+    "waves": {
+        "files": 2,
+        "ok": 2,
+        "skip": 0,
+        "err": 0,
+        "messages": [
+            "OK wave_point_41117.json -> waves_41117 rows=25",
+            "OK wave_point_41112.json -> waves_41112 rows=25"
+        ]
+    },
+    "winds_fcst": {
+        "41112": 177,
+        "median": 177,
+        "41117": 177
+    }
+}
+PHP Fatal error:  Uncaught PDOException: SQLSTATE[HY000] [2002] Connection refused in /Applications/MAMP/htdocs/normal-surf/includes/Infra/Db.php:47
+Stack trace:
+#0 /Applications/MAMP/htdocs/normal-surf/includes/Infra/Db.php(47): PDO->__construct('mysql:host=127....', 'root', Object(SensitiveParameterValue), Array)
+#1 /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php(18): Legenda\NormalSurf\Infra\Db::get()
+#2 /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php(100): Legenda\NormalSurf\BatchProcessing\ImportFC::pdo()
+#3 /Applications/MAMP/htdocs/normal-surf/bin/refresh_fc.php(47): Legenda\NormalSurf\BatchProcessing\ImportFC::refresh_all(Array)
+#4 {main}
+
+Next PDOException: Database connection failed. Attempts: [socket=/Applications/MAMP/tmp/mysql/mysql.sock | host=127.0.0.1;port=8889 | host=127.0.0.1;port=3306]. APP_ENV=unset. Original error: SQLSTATE[HY000] [2002] Connection refused in /Applications/MAMP/htdocs/normal-surf/includes/Infra/Db.php:71
+Stack trace:
+#0 /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php(18): Legenda\NormalSurf\Infra\Db::get()
+#1 /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php(100): Legenda\NormalSurf\BatchProcessing\ImportFC::pdo()
+#2 /Applications/MAMP/htdocs/normal-surf/bin/refresh_fc.php(47): Legenda\NormalSurf\BatchProcessing\ImportFC::refresh_all(Array)
+#3 {main}
+  thrown in /Applications/MAMP/htdocs/normal-surf/includes/Infra/Db.php on line 71
+
+Fatal error: Uncaught PDOException: SQLSTATE[HY000] [2002] Connection refused in /Applications/MAMP/htdocs/normal-surf/includes/Infra/Db.php:47
+Stack trace:
+#0 /Applications/MAMP/htdocs/normal-surf/includes/Infra/Db.php(47): PDO->__construct('mysql:host=127....', 'root', Object(SensitiveParameterValue), Array)
+#1 /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php(18): Legenda\NormalSurf\Infra\Db::get()
+#2 /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php(100): Legenda\NormalSurf\BatchProcessing\ImportFC::pdo()
+#3 /Applications/MAMP/htdocs/normal-surf/bin/refresh_fc.php(47): Legenda\NormalSurf\BatchProcessing\ImportFC::refresh_all(Array)
+#4 {main}
+
+Next PDOException: Database connection failed. Attempts: [socket=/Applications/MAMP/tmp/mysql/mysql.sock | host=127.0.0.1;port=8889 | host=127.0.0.1;port=3306]. APP_ENV=unset. Original error: SQLSTATE[HY000] [2002] Connection refused in /Applications/MAMP/htdocs/normal-surf/includes/Infra/Db.php:71
+Stack trace:
+#0 /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php(18): Legenda\NormalSurf\Infra\Db::get()
+#1 /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php(100): Legenda\NormalSurf\BatchProcessing\ImportFC::pdo()
+#2 /Applications/MAMP/htdocs/normal-surf/bin/refresh_fc.php(47): Legenda\NormalSurf\BatchProcessing\ImportFC::refresh_all(Array)
+#3 {main}
+  thrown in /Applications/MAMP/htdocs/normal-surf/includes/Infra/Db.php on line 71
+PHP Fatal error:  Uncaught PDOException: SQLSTATE[HY000] [2002] Connection refused in /Applications/MAMP/htdocs/normal-surf/includes/Infra/Db.php:47
+Stack trace:
+#0 /Applications/MAMP/htdocs/normal-surf/includes/Infra/Db.php(47): PDO->__construct('mysql:host=127....', 'root', Object(SensitiveParameterValue), Array)
+#1 /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php(18): Legenda\NormalSurf\Infra\Db::get()
+#2 /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php(100): Legenda\NormalSurf\BatchProcessing\ImportFC::pdo()
+#3 /Applications/MAMP/htdocs/normal-surf/bin/refresh_fc.php(49): Legenda\NormalSurf\BatchProcessing\ImportFC::refresh_all(Array)
+#4 {main}
+
+Next PDOException: Database connection failed. Attempts: [socket=/Applications/MAMP/tmp/mysql/mysql.sock | host=127.0.0.1;port=8889 | host=127.0.0.1;port=3306]. APP_ENV=unset. Original error: SQLSTATE[HY000] [2002] Connection refused in /Applications/MAMP/htdocs/normal-surf/includes/Infra/Db.php:71
+Stack trace:
+#0 /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php(18): Legenda\NormalSurf\Infra\Db::get()
+#1 /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php(100): Legenda\NormalSurf\BatchProcessing\ImportFC::pdo()
+#2 /Applications/MAMP/htdocs/normal-surf/bin/refresh_fc.php(49): Legenda\NormalSurf\BatchProcessing\ImportFC::refresh_all(Array)
+#3 {main}
+  thrown in /Applications/MAMP/htdocs/normal-surf/includes/Infra/Db.php on line 71
+
+Fatal error: Uncaught PDOException: SQLSTATE[HY000] [2002] Connection refused in /Applications/MAMP/htdocs/normal-surf/includes/Infra/Db.php:47
+Stack trace:
+#0 /Applications/MAMP/htdocs/normal-surf/includes/Infra/Db.php(47): PDO->__construct('mysql:host=127....', 'root', Object(SensitiveParameterValue), Array)
+#1 /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php(18): Legenda\NormalSurf\Infra\Db::get()
+#2 /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php(100): Legenda\NormalSurf\BatchProcessing\ImportFC::pdo()
+#3 /Applications/MAMP/htdocs/normal-surf/bin/refresh_fc.php(49): Legenda\NormalSurf\BatchProcessing\ImportFC::refresh_all(Array)
+#4 {main}
+
+Next PDOException: Database connection failed. Attempts: [socket=/Applications/MAMP/tmp/mysql/mysql.sock | host=127.0.0.1;port=8889 | host=127.0.0.1;port=3306]. APP_ENV=unset. Original error: SQLSTATE[HY000] [2002] Connection refused in /Applications/MAMP/htdocs/normal-surf/includes/Infra/Db.php:71
+Stack trace:
+#0 /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php(18): Legenda\NormalSurf\Infra\Db::get()
+#1 /Applications/MAMP/htdocs/normal-surf/includes/BatchProcessing/ImportFC.php(100): Legenda\NormalSurf\BatchProcessing\ImportFC::pdo()
+#2 /Applications/MAMP/htdocs/normal-surf/bin/refresh_fc.php(49): Legenda\NormalSurf\BatchProcessing\ImportFC::refresh_all(Array)
+#3 {main}
+  thrown in /Applications/MAMP/htdocs/normal-surf/includes/Infra/Db.php on line 71
