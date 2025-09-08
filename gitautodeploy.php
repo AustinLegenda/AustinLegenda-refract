@@ -1,7 +1,7 @@
 <?php
 const API_KEY = "TET1YJpNFeBVRyTz9p5Y5QPe3LOIz4";
-const API_URL = "https://api.cloudways.com/api/v1&quot";
-const EMAIL = "austin@legenda.co";
+const API_URL = "https://api.cloudways.com/api/v1";
+const EMAIL = "austin.allent@gmail.com";
 /* examples
 const BranchName = "master";
 const GitUrl = "git@bitbucket.org:user22/repo_name.git";
@@ -59,3 +59,4 @@ $gitPullResponse = callCloudwaysAPI('POST', '/git/pull', $accessToken, [
 
 echo (json_encode($gitPullResponse));
 ?>
+
