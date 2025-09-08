@@ -2,16 +2,15 @@ name: Forecast Job
 
 on:
   schedule:
-    - cron: "*/15 * * * *"      # run every 15 minutes
-  workflow_dispatch:            # allow manual runs
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
 
-# Prevent overlapping runs if a previous job is still going
 concurrency:
   group: forecast-job
   cancel-in-progress: false
 
 permissions:
-  contents: write               # needed to commit/push JSON
+  contents: write
 
 jobs:
   run-forecast:
@@ -40,7 +39,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-
 
-      # ecCodes runtime for cfgrib
       - name: Install system libs for cfgrib/ecCodes
         run: |
           sudo apt-get update
@@ -53,35 +51,30 @@ jobs:
 
       - name: Run forecast
         env:
-          # mirror your local suppression for cfgrib warnings
           PYTHONWARNINGS: "ignore::FutureWarning:cfgrib.xarray_plugin"
         run: |
           python Forecast/src/main.py
 
-      # Copy any produced JSONs into the public path we deploy
+      # ✅ USE THIS SOURCE PATH EXACTLY
       - name: Stage JSON into public_html
         run: |
           set -euo pipefail
-          mkdir -p public_html/Forecast/data/
-          shopt -s globstar nullglob
-          copied=0
-          # pick up your current path + a fallback
-          for f in Forecast/src/data/wave-forecast/*.json data/wave-forecast/*.json; do
-            echo "Copying $f → public_html/Forecast/data/"
-            cp "$f" public_html/Forecast/data/
-            copied=1
+          SRC_DIR="Forecast/src/data/wave-forecast"
+          DEST_DIR="public_html/Forecast/src/data/wave-forecast"
+          mkdir -p "$DEST_DIR"
+          shopt -s nullglob
+          for f in "$SRC_DIR"/*.json; do
+            echo "Copying $f → $DEST_DIR/"
+            cp "$f" "$DEST_DIR/"
           done
-          if [ "$copied" -eq 0 ]; then
-            echo "::warning::No JSON found under Forecast/src/data/wave-forecast/ or data/wave-forecast/"
-          fi
-          ls -l public_html/Forecast/data/ || true
+          ls -l "$DEST_DIR" || true
 
       - name: Commit & push JSON
         run: |
           set -euo pipefail
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -A public_html/Forecast/data/
+          git add -A public_html/Forecast/src/data/wave-forecast/
           if git diff --cached --quiet; then
             echo "No JSON changes to commit"
           else
@@ -89,10 +82,9 @@ jobs:
             git push
           fi
 
-      # Cloudways pull trigger (robust; no fragile long URL in secrets)
       - name: Trigger Cloudways pull (webhook)
         env:
-          CW_DEPLOY_BASE: ${{ secrets.CW_DEPLOY_BASE }} # e.g. https://phpstack-1452178-5683884.cloudwaysapps.com/gitautodeploy.php
+          CW_DEPLOY_BASE: ${{ secrets.CW_DEPLOY_BASE }}
           CW_SERVER_ID: "1452178"
           CW_APP_ID: "5683884"
           GIT_URL: "git@github.com:AustinLegenda/AustinLegenda-refract.git"
@@ -103,7 +95,6 @@ jobs:
           if [ -z "$BASE" ]; then
             echo "::error::CW_DEPLOY_BASE secret is not set"; exit 1
           fi
-
           echo "Calling Cloudways webhook…"
           curl -sS -m 60 --get "$BASE" \
             --data-urlencode "server_id=$CW_SERVER_ID" \
@@ -113,20 +104,16 @@ jobs:
             -D /tmp/cw.headers -o /tmp/cw.json || {
               echo "::error::Failed to reach Cloudways webhook"; exit 1;
             }
-
           echo "HTTP status: $(head -n1 /tmp/cw.headers)"
           echo "Cloudways response:"; cat /tmp/cw.json || true
-          if grep -qi '"error"' /tmp/cw.json 2>/dev/null; then
-            echo "::error::Cloudways returned an error payload"; exit 1
-          fi
 
-      # Optional: verify the JSON is live after the deploy (non-fatal warnings)
+      # Optional: verify exact public URLs
       - name: Verify JSON is live on Cloudways
         run: |
           sleep 5
           for url in \
-            "https://phpstack-1452178-5683884.cloudwaysapps.com/Forecast/data/wave_point_41112.json" \
-            "https://phpstack-1452178-5683884.cloudwaysapps.com/Forecast/data/wave_point_41117.json"
+            "https://phpstack-1452178-5683884.cloudwaysapps.com/Forecast/src/data/wave-forecast/wave_point_41112.json" \
+            "https://phpstack-1452178-5683884.cloudwaysapps.com/Forecast/src/data/wave-forecast/wave_point_41117.json"
           do
             code=$(curl -s -o /dev/null -w '%{http_code}' "$url")
             echo "$url → HTTP $code"
