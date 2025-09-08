@@ -1,0 +1,16 @@
+# --- Python noise
+__pycache__/
+*.pyc
+
+# --- Build intermediates (never commit GRIBs)
+Forecast/src/data/grib/
+data/grib/
+**/*.grib
+**/*.grib2
+
+# --- Local env; keep secrets out of Git
+.env
+*.env
+
+# --- Keep deployed JSONs (override any broader ignores)
+!public_html/Forecast/src/data/wave-forecast/*.json
