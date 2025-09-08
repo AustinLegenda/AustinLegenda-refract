@@ -1,50 +1,79 @@
-name: Forecast build and deploy
+name: Forecast Job
 
 on:
   schedule:
-    - cron: "*/15 * * * *"    # every 15 minutes (UTC)
-  workflow_dispatch: {}        # manual trigger for testing
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write   # needed to push JSON updates
 
 jobs:
-  build-and-deploy:
+  run-forecast:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repo
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-python@v5
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Install Python dependencies
-        working-directory: Forecast/src
+      # cfgrib needs the ecCodes C libraries on the runner
+      - name: Install ecCodes system libs
         run: |
-          python -m pip install -U pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libeccodes0 libeccodes-dev
 
-      - name: Run forecast generator
-        working-directory: Forecast/src
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          pip install -r Forecast/requirements.txt
+
+      # Optional: surface warnings exactly like your local run
+      - name: Run forecast
         env:
           PYTHONWARNINGS: "ignore::FutureWarning:cfgrib.xarray_plugin"
-        run: python -u main.py
+        run: |
+          python Forecast/src/main.py
 
+      # Copy any JSON produced into the site tree we deploy
       - name: Stage JSON into public_html
         run: |
-          mkdir -p public_html/Forecast/data
-          rsync -a --delete Forecast/src/data/ public_html/Forecast/data/
+          mkdir -p public_html/Forecast/data/
+          # copy from typical output locations; adjust if yours differs
+          if compgen -G "Forecast/data/*.json" > /dev/null; then
+            cp Forecast/data/*.json public_html/Forecast/data/ || true
+          fi
+          if compgen -G "Forecast/data/**/*.json" > /dev/null; then
+            find Forecast/data -name "*.json" -maxdepth 2 -type f -print0 | xargs -0 -I{} cp "{}" public_html/Forecast/data/ || true
+          fi
+          if compgen -G "Forecast/data/wave-forecast/*.json" > /dev/null; then
+            cp Forecast/data/wave-forecast/*.json public_html/Forecast/data/ || true
+          fi
 
-      - name: Commit and push artifacts
+      - name: Commit & push JSON
         run: |
-          git config user.name "github-actions"
-          git config user.email "actions@users.noreply.github.com"
-          git add public_html/Forecast/data
-          git commit -m "auto: forecast update [skip ci]" || echo "no changes"
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add public_html/Forecast/data/ || true
+          git commit -m "Update forecast JSON [skip ci]" || echo "No changes to commit"
           git push
 
-      - name: Trigger Cloudways deploy webhook
+      - name: Trigger Cloudways pull (webhook)
+        if: always()
+        env:
+          CW_DEPLOY_URL: ${{ secrets.CW_DEPLOY_URL }}
         run: |
-          curl -sS -X GET "${{ secrets.CW_DEPLOY_URL }}"
+          if [ -z "$CW_DEPLOY_URL" ]; then
+            echo "CW_DEPLOY_URL secret is not set"; exit 1
+          fi
+          echo "Calling Cloudways webhook…"
+          curl -sS -m 30 "$CW_DEPLOY_URL" -o /tmp/cw.json
+          echo "Cloudways response:"
+          cat /tmp/cw.json
