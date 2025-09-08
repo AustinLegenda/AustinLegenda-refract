@@ -2,15 +2,23 @@ name: Forecast Job
 
 on:
   schedule:
-    - cron: "*/15 * * * *"
-  workflow_dispatch:
+    - cron: "*/15 * * * *"      # run every 15 minutes
+  workflow_dispatch:            # allow manual runs
+
+# Prevent overlapping runs if a previous 15-min job is still going
+concurrency:
+  group: forecast-job
+  cancel-in-progress: false
 
 permissions:
-  contents: write   # needed to push JSON updates
+  contents: write               # required to commit/push JSON
 
 jobs:
   run-forecast:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
 
     steps:
       - name: Checkout repo
@@ -22,40 +30,42 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          check-latest: true
 
-      # cfgrib needs the ecCodes C libraries on the runner
-      - name: Install ecCodes system libs
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('Forecast/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      # cfgrib needs the ecCodes C libraries
+      - name: Install system libs for cfgrib/ecCodes
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            libeccodes0 libeccodes-dev
+          sudo apt-get install -y --no-install-recommends libeccodes0 libeccodes-dev
 
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip setuptools wheel
           pip install -r Forecast/requirements.txt
 
-      # Optional: surface warnings exactly like your local run
       - name: Run forecast
         env:
+          # mirror your local suppression for cfgrib warnings
           PYTHONWARNINGS: "ignore::FutureWarning:cfgrib.xarray_plugin"
         run: |
           python Forecast/src/main.py
 
-      # Copy any JSON produced into the site tree we deploy
       - name: Stage JSON into public_html
         run: |
           mkdir -p public_html/Forecast/data/
-          # copy from typical output locations; adjust if yours differs
-          if compgen -G "Forecast/data/*.json" > /dev/null; then
-            cp Forecast/data/*.json public_html/Forecast/data/ || true
-          fi
-          if compgen -G "Forecast/data/**/*.json" > /dev/null; then
-            find Forecast/data -name "*.json" -maxdepth 2 -type f -print0 | xargs -0 -I{} cp "{}" public_html/Forecast/data/ || true
-          fi
-          if compgen -G "Forecast/data/wave-forecast/*.json" > /dev/null; then
-            cp Forecast/data/wave-forecast/*.json public_html/Forecast/data/ || true
-          fi
+          shopt -s nullglob
+          # copy common output locations; adjust if your script writes elsewhere
+          for f in Forecast/data/*.json Forecast/data/wave-forecast/*.json; do
+            cp "$f" public_html/Forecast/data/
+          done
 
       - name: Commit & push JSON
         run: |
@@ -65,15 +75,37 @@ jobs:
           git commit -m "Update forecast JSON [skip ci]" || echo "No changes to commit"
           git push
 
+      # 🔔 Cloudways pull trigger (robust; no fragile long URL in secrets)
       - name: Trigger Cloudways pull (webhook)
-        if: always()
         env:
-          CW_DEPLOY_URL: ${{ secrets.CW_DEPLOY_URL }}
+          CW_DEPLOY_BASE: ${{ secrets.CW_DEPLOY_BASE }} # e.g. https://phpstack-1452178-5683884.cloudwaysapps.com/gitautodeploy.php
+          CW_SERVER_ID: "1452178"
+          CW_APP_ID: "5683884"
+          GIT_URL: "git@github.com:AustinLegenda/AustinLegenda-refract.git"
+          BRANCH: "main"
         run: |
-          if [ -z "$CW_DEPLOY_URL" ]; then
-            echo "CW_DEPLOY_URL secret is not set"; exit 1
+          BASE="$(printf %s "$CW_DEPLOY_BASE" | tr -d '\r\n')"
+          if [ -z "$BASE" ]; then
+            echo "::error::CW_DEPLOY_BASE secret is not set"; exit 1
           fi
+
           echo "Calling Cloudways webhook…"
-          curl -sS -m 30 "$CW_DEPLOY_URL" -o /tmp/cw.json
+          # Build the query safely; curl handles encoding of @ : / etc.
+          curl -sS -m 60 --get "$BASE" \
+            --data-urlencode "server_id=$CW_SERVER_ID" \
+            --data-urlencode "app_id=$CW_APP_ID" \
+            --data-urlencode "git_url=$GIT_URL" \
+            --data-urlencode "branch_name=$BRANCH" \
+            -D /tmp/cw.headers -o /tmp/cw.json || {
+              echo "::error::Failed to reach Cloudways webhook"; exit 1;
+            }
+
+          echo "HTTP status: $(head -n1 /tmp/cw.headers)"
           echo "Cloudways response:"
-          cat /tmp/cw.json
+          cat /tmp/cw.json || true
+
+          # Soft check: if the response contains the string "error", surface it.
+          if grep -qi '"error"' /tmp/cw.json 2>/dev/null; then
+            echo "::error::Cloudways returned an error payload"
+            exit 1
+          fi
