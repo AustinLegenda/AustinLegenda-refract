@@ -60,18 +60,18 @@ jobs:
 
       - name: Stage JSON into public_html
         run: |
-          mkdir -p public_html/Forecast/data/
+          mkdir -p public_html/Forecast/src/data/
           shopt -s nullglob
           # copy common output locations; adjust if your script writes elsewhere
-          for f in Forecast/data/*.json Forecast/data/wave-forecast/*.json; do
-            cp "$f" public_html/Forecast/data/
+          for f in Forecast/data/*.json Forecast/src/data/wave-forecast/*.json; do
+            cp "$f" public_html/Forecast/src/data/
           done
 
       - name: Commit & push JSON
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add public_html/Forecast/data/ || true
+          git add public_html/Forecast/src/data/ || true
           git commit -m "Update forecast JSON [skip ci]" || echo "No changes to commit"
           git push
 
