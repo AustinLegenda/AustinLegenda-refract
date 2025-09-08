@@ -5,13 +5,13 @@ on:
     - cron: "*/15 * * * *"      # run every 15 minutes
   workflow_dispatch:            # allow manual runs
 
-# Prevent overlapping runs if a previous 15-min job is still going
+# Prevent overlapping runs if a previous job is still going
 concurrency:
   group: forecast-job
   cancel-in-progress: false
 
 permissions:
-  contents: write               # required to commit/push JSON
+  contents: write               # needed to commit/push JSON
 
 jobs:
   run-forecast:
@@ -26,7 +26,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up Python
+      - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -40,7 +40,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-
 
-      # cfgrib needs the ecCodes C libraries
+      # ecCodes runtime for cfgrib
       - name: Install system libs for cfgrib/ecCodes
         run: |
           sudo apt-get update
@@ -58,24 +58,38 @@ jobs:
         run: |
           python Forecast/src/main.py
 
+      # Copy any produced JSONs into the public path we deploy
       - name: Stage JSON into public_html
         run: |
-          mkdir -p public_html/Forecast/src/data/
-          shopt -s nullglob
-          # copy common output locations; adjust if your script writes elsewhere
-          for f in Forecast/data/*.json Forecast/src/data/wave-forecast/*.json; do
-            cp "$f" public_html/Forecast/src/data/
+          set -euo pipefail
+          mkdir -p public_html/Forecast/data/
+          shopt -s globstar nullglob
+          copied=0
+          # pick up your current path + a fallback
+          for f in Forecast/src/data/wave-forecast/*.json data/wave-forecast/*.json; do
+            echo "Copying $f → public_html/Forecast/data/"
+            cp "$f" public_html/Forecast/data/
+            copied=1
           done
+          if [ "$copied" -eq 0 ]; then
+            echo "::warning::No JSON found under Forecast/src/data/wave-forecast/ or data/wave-forecast/"
+          fi
+          ls -l public_html/Forecast/data/ || true
 
       - name: Commit & push JSON
         run: |
+          set -euo pipefail
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add public_html/Forecast/src/data/ || true
-          git commit -m "Update forecast JSON [skip ci]" || echo "No changes to commit"
-          git push
+          git add -A public_html/Forecast/data/
+          if git diff --cached --quiet; then
+            echo "No JSON changes to commit"
+          else
+            git commit -m "Update forecast JSON [skip ci]"
+            git push
+          fi
 
-      # 🔔 Cloudways pull trigger (robust; no fragile long URL in secrets)
+      # Cloudways pull trigger (robust; no fragile long URL in secrets)
       - name: Trigger Cloudways pull (webhook)
         env:
           CW_DEPLOY_BASE: ${{ secrets.CW_DEPLOY_BASE }} # e.g. https://phpstack-1452178-5683884.cloudwaysapps.com/gitautodeploy.php
@@ -84,13 +98,13 @@ jobs:
           GIT_URL: "git@github.com:AustinLegenda/AustinLegenda-refract.git"
           BRANCH: "main"
         run: |
+          set -euo pipefail
           BASE="$(printf %s "$CW_DEPLOY_BASE" | tr -d '\r\n')"
           if [ -z "$BASE" ]; then
             echo "::error::CW_DEPLOY_BASE secret is not set"; exit 1
           fi
 
           echo "Calling Cloudways webhook…"
-          # Build the query safely; curl handles encoding of @ : / etc.
           curl -sS -m 60 --get "$BASE" \
             --data-urlencode "server_id=$CW_SERVER_ID" \
             --data-urlencode "app_id=$CW_APP_ID" \
@@ -101,11 +115,22 @@ jobs:
             }
 
           echo "HTTP status: $(head -n1 /tmp/cw.headers)"
-          echo "Cloudways response:"
-          cat /tmp/cw.json || true
-
-          # Soft check: if the response contains the string "error", surface it.
+          echo "Cloudways response:"; cat /tmp/cw.json || true
           if grep -qi '"error"' /tmp/cw.json 2>/dev/null; then
-            echo "::error::Cloudways returned an error payload"
-            exit 1
+            echo "::error::Cloudways returned an error payload"; exit 1
           fi
+
+      # Optional: verify the JSON is live after the deploy (non-fatal warnings)
+      - name: Verify JSON is live on Cloudways
+        run: |
+          sleep 5
+          for url in \
+            "https://phpstack-1452178-5683884.cloudwaysapps.com/Forecast/data/wave_point_41112.json" \
+            "https://phpstack-1452178-5683884.cloudwaysapps.com/Forecast/data/wave_point_41117.json"
+          do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "$url")
+            echo "$url → HTTP $code"
+            if [ "$code" -ne 200 ]; then
+              echo "::warning::Missing or not deployed: $url"
+            fi
+          done
